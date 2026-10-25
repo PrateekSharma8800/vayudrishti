@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VayuDrishti – Urban Air Quality &amp; Traffic Impact Assessment</title>
+  <meta name="description" content="VayuDrishti: See the air. Understand the impact.">
+  <script>try{var t=localStorage.getItem("aps_theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="hero">
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">
+          <svg class="logo" viewBox="0 0 48 48" role="img" aria-label="VayuDrishti logo" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M40 6C22 6 10 15 10 29c0 3 1 6 3 8 3-12 12-18 22-21-8 4-14 11-17 21 2 1 4 1 6 1 12 0 16-13 16-32z" fill="#A7E6C1"/>
+            <path d="M4 38c6-3 10 3 16 0M2 44c7-3 12 3 19 0" stroke="#A7E6C1" stroke-width="3"/>
+          </svg>
+          <div>
+            <h1>VayuDrishti</h1>
+            <p class="tagline">See the air. Understand the impact.</p>
+            <p>Urban Air Quality &amp; Traffic Impact Assessment</p>
+          </div>
+        </div>
+        <div class="topbtns">
+          <button type="button" class="icon" id="themeBtn" aria-label="Switch to dark mode">🌙</button>
+          <button type="button" class="icon" id="menuBtn" aria-label="Menu" aria-expanded="false" aria-controls="nav">☰</button>
+        </div>
+      </div>
+      <nav id="nav" aria-label="Main">
+        <a href="#dashboard">Dashboard</a><a href="#observe">Observations</a><a href="#charts">Charts</a>
+        <a href="#hotspots">Hotspots</a><a href="#survey">Health Survey</a><a href="#method">Methodology</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap" id="main">
+    <div id="sampleBanner" class="banner" hidden>
+      ⚠ <strong>SAMPLE DATA</strong> – the records marked “Sample” are made-up demo values, not real measurements.
+    </div>
+
+    <section id="dashboard">
+      <div class="insights panel" id="insights" aria-live="polite"></div>
+      <div class="toolbar">
+        <h2>Dashboard</h2>
+        <div class="filters">
+          <label>Location <select id="fLoc"></select></label>
+          <label>From <input type="date" id="fFrom"></label>
+          <label>To <input type="date" id="fTo"></label>
+          <button type="button" class="ghost" id="fReset">Reset</button>
+        </div>
+      </div>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <section id="observe" class="grid2">
+      <form id="obsForm" class="panel">
+        <h2 id="formTitle">Add observation</h2>
+        <input type="hidden" id="obsId">
+        <label>Location <input id="loc" list="locList" required maxlength="40" placeholder="e.g. Main Market Crossing"></label>
+        <datalist id="locList"></datalist>
+        <div class="row">
+          <label>Date <input type="date" id="date" required></label>
+          <label>Time slot
+            <select id="slot"><option>Morning</option><option>Afternoon</option><option>Evening</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Vehicles per hour <input type="number" id="traffic" min="0" required></label>
+          <label>Heavy vehicles (%) <input type="number" id="heavy" min="0" max="100" value="10" required></label>
+        </div>
+        <label>Dust deposition (mg/m²/day) <input type="number" id="dust" min="0" step="0.1" required></label>
+        <label>Notes <textarea id="notes" rows="2" maxlength="200" placeholder="Weather, construction nearby, etc."></textarea></label>
+        <div class="row">
+          <button type="submit" id="saveBtn">Save observation</button>
+          <button type="button" class="ghost" id="cancelBtn" hidden>Cancel edit</button>
+        </div>
+      </form>
+
+      <div class="panel">
+        <h2>Saved observations</h2>
+        <div class="row">
+          <button class="ghost" id="loadSample">Load sample data</button>
+          <button class="ghost" id="exportCsv">Export CSV</button>
+          <button class="ghost danger" id="clearAll">Delete all</button>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <caption class="sr">Saved observations</caption>
+            <thead><tr><th>Date</th><th>Location</th><th>Slot</th><th>Veh/h</th><th>Heavy%</th><th>Dust</th><th></th></tr></thead>
+            <tbody id="obsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="charts">
+      <h2>Charts</h2>
+      <div class="grid2">
+        <div class="panel"><h3>Traffic over time</h3><div class="chart"><canvas id="cTraffic"></canvas></div></div>
+        <div class="panel"><h3>Dust deposition over time</h3><div class="chart"><canvas id="cDust"></canvas></div></div>
+        <div class="panel"><h3>Traffic vs dust (each dot = one observation)</h3><div class="chart"><canvas id="cScatter"></canvas></div></div>
+        <div class="panel"><h3>Location comparison (averages)</h3><div class="chart"><canvas id="cCompare"></canvas></div></div>
+      </div>
+    </section>
+
+    <section id="hotspots" class="panel">
+      <h2>Pollution hotspot ranking</h2>
+      <p class="muted">Score = 50% average dust + 50% average traffic, each scaled against the highest location (0–100). Based on the current filters.</p>
+      <div class="tablewrap">
+        <table><thead><tr><th>Rank</th><th>Location</th><th>Avg traffic</th><th>Avg dust</th><th>Score</th><th>Level</th></tr></thead>
+        <tbody id="hotBody"></tbody></table>
+      </div>
+    </section>
+
+    <section id="survey" class="grid2">
+      <form id="surveyForm" class="panel">
+        <h2>Anonymous health survey</h2>
+        <p class="muted">No names or personal details are stored – only running totals.</p>
+        <fieldset>
+          <legend>Symptoms you often notice near busy roads</legend>
+          <label class="chk"><input type="checkbox" name="sym" value="Cough"> Cough</label>
+          <label class="chk"><input type="checkbox" name="sym" value="Eye irritation"> Eye irritation</label>
+          <label class="chk"><input type="checkbox" name="sym" value="Breathlessness"> Breathlessness</label>
+          <label class="chk"><input type="checkbox" name="sym" value="Headache"> Headache</label>
+          <label class="chk"><input type="checkbox" name="sym" value="Throat irritation"> Throat irritation</label>
+        </fieldset>
+        <label>Do you live/work within 100 m of a main road?
+          <select id="nearRoad"><option value="yes">Yes</option><option value="no">No</option></select>
+        </label>
+        <button type="submit">Submit response</button>
+        <button type="button" class="ghost danger" id="resetSurvey">Reset survey totals</button>
+      </form>
+      <div class="panel">
+        <h3>Survey results <span id="surveyTag" class="pill" hidden>includes sample</span></h3>
+        <p id="surveyText" class="muted"></p>
+        <div class="chart"><canvas id="cSurvey"></canvas></div>
+      </div>
+    </section>
+
+    <section id="method" class="grid2">
+      <div class="panel">
+        <h2>Methodology</h2>
+        <ul>
+          <li>Pick several locations (busy junction, residential street, park, etc.).</li>
+          <li>Count vehicles passing in a fixed period and scale to vehicles per hour; note the share of heavy vehicles (trucks/buses).</li>
+          <li>Measure dust deposition by exposing a clean, weighed collection plate or jar for a day, then weigh again (mg/m²/day).</li>
+          <li>Repeat at similar times on several days and compare locations.</li>
+          <li>Run the anonymous survey to link measurements with how people feel.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h2>Limitations</h2>
+        <ul>
+          <li>Small, non-random samples – results show patterns, not proof.</li>
+          <li>Dust deposition is not the same as PM2.5/PM10 concentration.</li>
+          <li>Weather, wind, rain and nearby construction affect dust.</li>
+          <li>Survey answers are self-reported and may be biased.</li>
+          <li>The hotspot score is a simple teaching index, not an official air quality index.</li>
+          <li>Data is stored only in this browser (localStorage).</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer><p>VayuDrishti · See the air. Understand the impact. · Sample data is for demonstration only. Data stays in this browser.</p></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
