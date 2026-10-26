@@ -4,7 +4,7 @@ const vm = require("node:vm");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const SOURCE = fs.readFileSync(path.join(__dirname, "..", "..", "app.js"), "utf8");
+const SOURCE = fs.readFileSync(path.join(__dirname, "..", "..", "public", "app.js"), "utf8");
 
 // like a real dataset, every value is stored as a string
 const stringMap = () => new Proxy({}, { set(t, k, v) { t[k] = String(v); return true; } });
