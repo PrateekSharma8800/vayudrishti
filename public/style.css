@@ -165,6 +165,8 @@ main > section { margin-bottom: 72px; }
 .ring-c small { margin-top: 4px; font-size: 11px; color: var(--ink-2); }
 .live-top { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; margin-top: 32px; }
 .live-top:empty { display: none; }
+.advice { max-width: 60ch; margin-top: 12px; font-size: 14px; line-height: 1.6; }
+.advice .muted { display: block; margin-top: 4px; }
 .live-top + .cards { margin-top: 20px; }
 
 /* ---------- controls ---------- */

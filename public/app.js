@@ -69,6 +69,16 @@ function animateRings() {
   })));
 }
 const aqiBand = (n) => (n <= 50 ? 1 : n <= 100 ? 2 : n <= 150 ? 3 : n <= 200 ? 4 : 5);
+// plain-language guidance per US AQI band, following the US EPA's cautionary statements
+const AQI_ADVICE = [
+  "",
+  "Air quality is satisfactory. Enjoy being outdoors.",
+  "Acceptable for most people. If you are unusually sensitive to air pollution, consider shorter or lighter outdoor exertion.",
+  "People with asthma, heart or lung disease, children and older adults should reduce long or heavy outdoor exertion. Everyone else can carry on.",
+  "Everyone may start to feel effects. Sensitive groups should avoid long outdoor exertion; everyone else should take more breaks and go easier on outdoor exercise.",
+  "Health warning: everyone should avoid long or heavy outdoor exertion, and sensitive groups should stay indoors and keep activity light.",
+];
+const aqiAdvice = (n) => (n > 300 ? "Health emergency: everyone should avoid all outdoor exertion." : AQI_ADVICE[aqiBand(n)]);
 // the haze behind the page takes the colour of the air
 const setAtmosphere = (aqi) => { document.documentElement.dataset.aqi = aqiBand(aqi); };
 
@@ -808,7 +818,8 @@ $("liveForm").addEventListener("submit", async (e) => {
     const where = cards.find((c) => c[0] === "IQAir station city");
     $("liveTop").innerHTML = ring(aqi, 300, "US AQI", aqiBand(aqi)) +
       `<div class="ins-text"><p class="eyebrow">Air near ${esc(target.name)}</p><h3>${esc(String(aqiCard[1]).split(" · ")[1] || "")}</h3>` +
-      (where ? `<p class="muted">Nearest station: ${esc(where[1])}</p>` : "") + "</div>";
+      (where ? `<p class="muted">Nearest station: ${esc(where[1])}</p>` : "") +
+      `<p class="advice">${esc(aqiAdvice(aqi))} <span class="muted">General guidance from US EPA categories, not medical advice.</span></p></div>`;
     setAtmosphere(aqi);
     animateRings();
     cards = cards.filter((c) => c !== aqiCard && c !== where);
