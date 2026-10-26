@@ -33,6 +33,8 @@ function newSurvey() {
 function esc(t) {
   return String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// local YYYY-MM-DD (toISOString would give the UTC date, a day off in IST)
+const ymd = (d) => d.toLocaleDateString("en-CA");
 const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
 const fmt = (n) => (Math.round(n * 10) / 10).toString();
 
@@ -90,7 +92,7 @@ function sampleObservations() {
       const wobble = 0.85 + ((i * 7 + d * 5) % 10) / 33; // deterministic variation
       list.push({
         id: "s" + i + "_" + d, sample: true, location: p[0],
-        date: date.toISOString().slice(0, 10), slot: slots[d % 3],
+        date: ymd(date), slot: slots[d % 3],
         traffic: Math.round(p[1] * wobble), heavy: Math.round(p[2] * wobble),
         dust: Math.round(p[3] * wobble * 10) / 10, notes: "Sample data",
       });
@@ -247,7 +249,7 @@ function renderSurvey() {
 function resetForm() {
   $("obsForm").reset();
   $("obsId").value = "";
-  $("date").value = new Date().toISOString().slice(0, 10);
+  $("date").value = ymd(new Date());
   $("formTitle").textContent = "Add observation";
   $("saveBtn").textContent = "Save observation";
   $("cancelBtn").hidden = true;
