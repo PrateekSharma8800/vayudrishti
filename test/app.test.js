@@ -111,7 +111,7 @@ test("charts are drawn with the page's colours and replaced on re-render", async
 test("live panel shows AQI as a ring, traffic as cards, and tints the atmosphere", async () => {
   const urls = [];
   const app = loadApp({ fetch: async (u) => { urls.push(u); return json(u.startsWith("/api/aqi") ? AQI : TRAFFIC); } });
-  fill(app, { lat: "28.6", lon: "77.2" });
+  fill(app, { place: "custom", lat: "28.6", lon: "77.2" });
   await app.els.liveForm.trigger("submit");
   assert.ok(urls.includes("/api/aqi?lat=28.6&lon=77.2") && urls.includes("/api/traffic?lat=28.6&lon=77.2"));
   assert.equal(urls.some((u) => /key=/.test(u)), false, "keys never appear in browser URLs");
@@ -127,7 +127,7 @@ test("live panel shows AQI as a ring, traffic as cards, and tints the atmosphere
 
 test("one live source failing does not hide the other", async () => {
   const app = loadApp({ fetch: async (u) => (u.startsWith("/api/aqi") ? json({ error: "IQAIR_API_KEY is missing in .env" }, 500) : json(TRAFFIC)) });
-  fill(app, { lat: "1", lon: "1" });
+  fill(app, { place: "custom", lat: "1", lon: "1" });
   await app.els.liveForm.trigger("submit");
   assert.match(app.els.liveNote.textContent, /IQAir failed: IQAIR_API_KEY is missing in \.env/);
   assert.match(app.els.liveCards.innerHTML, /km\/h/);
@@ -135,7 +135,7 @@ test("one live source failing does not hide the other", async () => {
 
 test("opening the page without the server explains how to start it", async () => {
   const app = loadApp();
-  fill(app, { lat: "1", lon: "1" });
+  fill(app, { place: "custom", lat: "1", lon: "1" });
   await app.els.liveForm.trigger("submit");
   assert.match(app.els.liveNote.textContent, /node server\.js/);
   assert.equal(app.els.liveBtn.disabled, false, "the button must come back");
@@ -144,14 +144,14 @@ test("opening the page without the server explains how to start it", async () =>
 test("the floating bar asks for coordinates before fetching", async () => {
   const app = loadApp();
   await app.els.nowBtn.click();
-  assert.match(app.els.toast.textContent, /Enter coordinates/);
+  assert.match(app.els.toast.textContent, /Choose a place/);
   assert.equal(app.ctx.location.hash, "#live");
 });
 
 test("auto-refresh is opt-in, runs every 15 minutes, and skips hidden tabs", async () => {
   let calls = 0;
   const app = loadApp({ fetch: async (u) => { calls++; return json(u.startsWith("/api/aqi") ? AQI : TRAFFIC); } });
-  fill(app, { lat: "28.6", lon: "77.2" });
+  fill(app, { place: "custom", lat: "28.6", lon: "77.2" });
   assert.equal(app.intervals.length, 0, "nothing is scheduled by default");
 
   app.els.autoLive.checked = true;
@@ -177,5 +177,56 @@ test("auto-refresh refuses to start without coordinates", async () => {
   await app.els.autoLive.trigger("change");
   assert.equal(app.els.autoLive.checked, false);
   assert.equal(app.intervals.filter((i) => i.active).length, 0);
-  assert.match(app.els.toast.textContent, /Enter coordinates first/);
+  assert.match(app.els.toast.textContent, /Choose a place first/);
+});
+
+test("the place dropdown lists Delhi NCR areas by city, plus a custom option", () => {
+  const app = loadApp();
+  const html = app.els.place.innerHTML;
+  for (const city of ["Delhi", "Noida and Greater Noida", "Gurugram", "Ghaziabad", "Faridabad"]) assert.match(html, new RegExp(`<optgroup label="${city}">`));
+  for (const area of ["Connaught Place", "Cyber Hub", "Indirapuram", "Anand Vihar", "NIT Faridabad"]) assert.match(html, new RegExp(`>${area}<`));
+  assert.match(html, /value="custom"/);
+  // every listed place is inside the NCR bounding box, which catches typos in a coordinate
+  const coords = [...html.matchAll(/value="([\d.]+),([\d.]+)"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  assert.ok(coords.length >= 40);
+  for (const [lat, lon] of coords) assert.ok(lat > 28.2 && lat < 29 && lon > 76.8 && lon < 77.6, `${lat},${lon}`);
+});
+
+test("picking a place fetches that place without typing coordinates", async () => {
+  const urls = [];
+  const app = loadApp({ fetch: async (u) => { urls.push(u); return json(u.startsWith("/api/aqi") ? AQI : TRAFFIC); } });
+  fill(app, { place: "28.6315,77.2167" });
+  await app.els.liveForm.trigger("submit");
+  assert.ok(urls.includes("/api/aqi?lat=28.6315&lon=77.2167") && urls.includes("/api/traffic?lat=28.6315&lon=77.2167"));
+  assert.match(app.els.nowText.textContent, /^Connaught Place · AQI 112/);
+  assert.match(app.els.liveTop.innerHTML, /Air near Connaught Place/);
+  assert.equal(app.els.coordRow.hidden, true, "coordinates stay hidden for a listed place");
+});
+
+test("choosing 'somewhere else' reveals the coordinate fields and validates them", async () => {
+  const app = loadApp();
+  fill(app, { place: "custom" });
+  await app.els.place.trigger("change");
+  assert.equal(app.els.coordRow.hidden, false);
+  fill(app, { lat: "95", lon: "77" });
+  await app.els.liveForm.trigger("submit");
+  assert.match(app.els.toast.textContent, /latitude \(-90 to 90\)/);
+  assert.equal(app.els.toast.className.includes("error"), true);
+});
+
+test("no place chosen means no request and a clear message", async () => {
+  let calls = 0;
+  const app = loadApp({ fetch: async () => { calls++; return json(AQI); } });
+  await app.els.liveForm.trigger("submit");
+  assert.equal(calls, 0);
+  assert.match(app.els.toast.textContent, /Choose a place first/);
+});
+
+test("the last chosen place is remembered, and old lat/lon settings still work", () => {
+  const remembered = loadApp({ store: { aps_live: JSON.stringify({ place: "28.4950,77.0889", lat: "", lon: "" }) } });
+  assert.equal(remembered.els.place.value, "28.4950,77.0889");
+  const old = loadApp({ store: { aps_live: JSON.stringify({ lat: "28.6", lon: "77.2" }) } });
+  assert.equal(old.els.place.value, "custom");
+  assert.equal(old.els.coordRow.hidden, false);
+  assert.equal(old.els.lat.value, "28.6");
 });
