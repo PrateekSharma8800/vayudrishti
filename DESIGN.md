@@ -16,9 +16,36 @@
 - **Colour is data.** One sage accent for actions. Warm clay is the second chart series. The AQI bands are the only other colours, and they always come with a text label.
 - **Concentric corners:** window 12, sidebar 28, rows 14, panels 24, fields 14, buttons and bars fully round.
 
+## Tools for the field
+Some of this app is used standing at a roadside, in sun and glare, one-handed, with attention elsewhere. Those parts follow different rules from the dashboard.
+- **Big, forgiving targets.** The field counter's two buttons are the largest things on the page (at least 132px tall), so a tap never misses and nobody has to look hard.
+- **One job per screen moment.** A huge timer, two count buttons, and only then the secondary actions. The first tap starts the clock, so there is no "start" step to forget.
+- **Numbers are the interface.** Counts and times use the display serif with tabular figures so they do not jitter as they change.
+- **Quiet feedback.** A light vibration per tap where the device supports it, a longer one when time is up, and the screen is kept awake while counting. Nothing flashes.
+- **Honest results.** A count that is too short is not scaled up to an hour; the app says so instead of producing a confident-looking number.
+- **Help where the question happens.** A hint under each field, a guide that explains how to take a reading, and calculators that fill the form for you.
+
+## Paper
+The report is the same lens on white paper. When printing, the sidebar, forms and floating bar disappear, the page is dated, and a dark theme is swapped for the light one for the duration (charts are redrawn in dark ink and nothing is saved). Gauges print full and animation is off, so the page is complete the moment it is captured.
+
+## Motion, in full
+Everything that moves, so nothing moves by accident:
+- Page load: header, sidebar, title and summary ease in, once.
+- Sections ease in as they scroll into view.
+- A pill glides to the active link in the sidebar.
+- Rings fill and their numbers count up; stat numbers count only when they change.
+- Haze drifts very slowly and changes colour with the air quality over about two seconds.
+- Buttons lift slightly on hover and press down on tap.
+- Shimmering placeholders while live data loads.
+- The theme switch cross-fades colours instead of snapping.
+- The live dot breathes; the logo's pupil looks around.
+
+`prefers-reduced-motion` turns all of it off. `prefers-reduced-transparency` makes glass solid. On phones only the header, the floating bar and the drawer keep their blur, because blurring every panel is costly on cheaper devices.
+
 ## What it is not
 - No gradients for decoration, no glossy buttons, no neon, no card-inside-card boxing.
-- No motion that cannot be turned off: `prefers-reduced-motion` stops all animation; `prefers-reduced-transparency` makes glass solid.
+- No colour that is not data, and no data colour without a text label.
+- No motion that cannot be turned off.
 
 ## Inspirations
 Apple Music (full-height sidebar, large page titles, floating bar), Liquid Glass (materials, concentric shapes, specular edge), DocuLens (warm ink and a soft serif).
