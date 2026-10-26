@@ -28,6 +28,7 @@ Treat both like passwords. Never put them in the code, in a commit, or in a chat
 4. **Add the keys.** Open **Environment Variables** on the same screen and add both, for Production and Preview:
    - `IQAIR_API_KEY`
    - `TOMTOM_API_KEY`
+   - `XKDR_API_KEY` (for the Stations section)
 5. **Deploy.** Press **Deploy**. When it finishes you get an address like `https://vayudrishti-xxxx.vercel.app`.
 6. **Check it works.** Open the address, go to **Live**, pick a place and press **Fetch live data**. You should see an AQI ring and traffic cards.
 
@@ -39,6 +40,7 @@ If you add or change a key **after** the first deploy, open **Deployments**, cho
 npx vercel                              # first time: log in, link the project, accept the defaults
 npx vercel env add IQAIR_API_KEY        # paste the key when asked; choose Production and Preview
 npx vercel env add TOMTOM_API_KEY
+npx vercel env add XKDR_API_KEY
 npx vercel --prod
 ```
 
@@ -54,6 +56,7 @@ Open `https://YOUR-ADDRESS/api/aqi?lat=28.6315&lon=77.2167` in a browser.
 
 - The page is served as static files from `public/`.
 - `/api/aqi` and `/api/traffic` are serverless functions in `api/`. They run the same code as `server.js` (`lib/live.js`), so behaviour matches everywhere.
+- `/api/stations`, `/api/latest`, `/api/latest-all` and `/api/history` are the XKDR functions (`lib/xkdr.js`). Their answers are shared by Vercel's CDN (6 hours for the station list, 1 hour for latest readings, 10 minutes for history).
 - **Good readings are cached on Vercel's CDN for 10 minutes** (`Cache-Control: s-maxage`), so repeat visitors never reach a function and never spend your quota. This is what really protects the free plans.
 - The per-visitor rate limit and the daily cap live in each function instance's memory. On serverless, instances come and go and do not share memory, so those two are **best effort** only.
 - Security headers, including the content security policy, come from `vercel.json`.
@@ -103,6 +106,8 @@ Most platforms provide `PORT` for you. Put it behind HTTPS (the platform usually
 | Variable | Default | Meaning |
 |---|---|---|
 | `IQAIR_API_KEY`, `TOMTOM_API_KEY` | none | Needed for the Live section |
+| `XKDR_API_KEY` | none | Needed for the Stations section (historical PM2.5 / PM10) |
+| `XKDR_TIMEOUT_MS` | `25000` | How long to wait for XKDR (stays under the 30 second function limit in `vercel.json`) |
 | `HOST` | `127.0.0.1` | `0.0.0.0` accepts outside connections (needed on servers) |
 | `PORT` | `8000` | Port to listen on |
 | `TRUST_PROXY` | off | `1` when a proxy sits in front; then `X-Forwarded-For` identifies visitors |

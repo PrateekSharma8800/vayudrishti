@@ -29,8 +29,9 @@ Everything the user types stays in `localStorage`. The server only forwards two 
 | `server.js` | Plain `http` server for local use, Docker and Render. Serves files, `/healthz` and the two API routes |
 | `lib/live.js` | The live-data proxy as a function, `createLive(env)`. Shared by `server.js` and the Vercel functions |
 | `lib/security.js` | Builds the security headers, including the CSP with the inline script's hash |
-| `lib/vercel.js` | Adapts `lib/live.js` to a Vercel `(req, res)` function |
-| `api/aqi.js`, `api/traffic.js` | One-line Vercel functions that call `lib/vercel.js` |
+| `lib/xkdr.js` | Historical PM2.5 / PM10 from XKDR as a function, `createXkdr(env)`: stations, latest archived readings, history |
+| `lib/vercel.js` | Adapts `lib/live.js` and `lib/xkdr.js` to a Vercel `(req, res)` function |
+| `api/*.js` | One-line Vercel functions that call `lib/vercel.js` (`aqi`, `traffic`, `stations`, `latest`, `latest-all`, `history`) |
 | `scripts/sync-vercel.js` | Generates `vercel.json` from `lib/security.js` and the page |
 | `vercel.json` | **Generated**; do not edit by hand (`npm run sync:vercel`) |
 | `test/` | Tests (see below) |

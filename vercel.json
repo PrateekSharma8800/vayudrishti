@@ -4,6 +4,11 @@
   "buildCommand": null,
   "installCommand": null,
   "outputDirectory": "public",
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 30
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
@@ -22,7 +27,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-Y1sRCVA2A/2AUaDdw3ud3XjyL47gNmUXZCOOnuhSisk='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
+          "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-Y1sRCVA2A/2AUaDdw3ud3XjyL47gNmUXZCOOnuhSisk='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src https://fonts.gstatic.com; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
         },
         {
           "key": "Permissions-Policy",

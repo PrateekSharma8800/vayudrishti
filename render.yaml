@@ -20,3 +20,5 @@ services:
         sync: false        # you enter these in the dashboard; they are never stored in the repo
       - key: TOMTOM_API_KEY
         sync: false
+      - key: XKDR_API_KEY
+        sync: false
