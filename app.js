@@ -305,13 +305,26 @@ $("obsBody").addEventListener("click", (e) => {
 // ---------- sample data / clear ----------
 function loadSample() {
   observations = observations.filter((o) => !o.sample).concat(sampleObservations());
-  survey = { n: 40, counts: { "Cough": 18, "Eye irritation": 22, "Breathlessness": 9, "Headache": 14, "Throat irritation": 16 }, near: 24, sample: true };
+  // never overwrite real survey responses
+  if (!survey.n || survey.sample) {
+    survey = { n: 40, counts: { "Cough": 18, "Eye irritation": 22, "Breathlessness": 9, "Headache": 14, "Throat irritation": 16 }, near: 24, sample: true };
+    save(SURVEY_KEY, survey);
+  }
   save(OBS_KEY, observations);
-  save(SURVEY_KEY, survey);
   toast("Sample data loaded. It is made-up demo data, not real measurements.");
   renderAll();
 }
 $("loadSample").addEventListener("click", loadSample);
+$("removeSample").addEventListener("click", () => {
+  if (!observations.some((o) => o.sample) && !survey.sample) { toast("No sample data to remove.", true); return; }
+  if (survey.sample && survey.n > 40 && !confirm("Survey totals include sample data plus your responses. Removing sample data resets the survey. Continue?")) return;
+  observations = observations.filter((o) => !o.sample);
+  if (survey.sample) survey = newSurvey();
+  save(OBS_KEY, observations);
+  save(SURVEY_KEY, survey);
+  toast("Sample data removed. Your own data is untouched.");
+  renderAll();
+});
 $("insights").addEventListener("click", (e) => { if (e.target.id === "emptySample") loadSample(); });
 
 // ---------- CSV export ----------
