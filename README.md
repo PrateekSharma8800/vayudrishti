@@ -19,7 +19,7 @@ No frameworks, no build step, no dependencies. Plain HTML, CSS and JavaScript, p
 ## Features
 
 - **Dashboard:** summary, filters (location, dates), and key numbers that count up when they change.
-- **Observations:** add, edit and delete field records; data lives in your browser (`localStorage`); CSV export.
+- **Observations:** add, edit and delete field records; data lives in your browser (`localStorage`). Export to CSV and import it back on another device: rows are validated, duplicates and demo rows are skipped, and nothing existing is overwritten.
 - **Charts:** traffic and dust over time, traffic vs dust, and a location comparison.
 - **Hotspots:** every location scored 0 to 100 (see below) and ranked.
 - **Live conditions:** US AQI from [IQAir](https://www.iqair.com/air-pollution-data-api) and current speed and congestion from [TomTom](https://developer.tomtom.com/). After a fetch the page's atmosphere takes the colour of the air.
