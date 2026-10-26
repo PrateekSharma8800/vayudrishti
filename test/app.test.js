@@ -126,10 +126,10 @@ test("live panel shows AQI as a ring, traffic as cards, and tints the atmosphere
 });
 
 test("one live source failing does not hide the other", async () => {
-  const app = loadApp({ fetch: async (u) => (u.startsWith("/api/aqi") ? json({ error: "IQAIR_API_KEY is missing in .env" }, 500) : json(TRAFFIC)) });
+  const app = loadApp({ fetch: async (u) => (u.startsWith("/api/aqi") ? json({ error: "IQAIR_API_KEY is missing on the server" }, 500) : json(TRAFFIC)) });
   fill(app, { place: "custom", lat: "1", lon: "1" });
   await app.els.liveForm.trigger("submit");
-  assert.match(app.els.liveNote.textContent, /IQAir failed: IQAIR_API_KEY is missing in \.env/);
+  assert.match(app.els.liveNote.textContent, /IQAir failed: IQAIR_API_KEY is missing on the server/);
   assert.match(app.els.liveCards.innerHTML, /km\/h/);
 });
 
