@@ -42,32 +42,79 @@ const ymd = (d) => d.toLocaleDateString("en-CA");
 const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
 const fmt = (n) => (Math.round(n * 10) / 10).toString();
 
+// ---------- motion helpers ----------
+const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// count a number up from 0 so a new value is noticed
+function countUp(el, to, decimals, ms) {
+  if (calm || !isFinite(to)) { el.textContent = to.toFixed(decimals); return; }
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / (ms || 900));
+    el.textContent = (to * (1 - Math.pow(1 - k, 3))).toFixed(decimals);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+// the "iris": a gauge that fills in. tone 1-5 matches the AQI bands (green ... plum)
+function ring(value, max, caption, tone) {
+  return `<div class="ring" data-tone="${tone}" style="--v:${Math.max(0, Math.min(1, value / max))}" role="img" aria-label="${value} ${esc(caption)}">` +
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="trk" cx="50" cy="50" r="44"/><circle class="arc" cx="50" cy="50" r="44" pathLength="100"/></svg>' +
+    `<div class="ring-c"><b data-count="${value}">${value}</b><small>${esc(caption)}</small></div></div>`;
+}
+function animateRings() {
+  requestAnimationFrame(() => requestAnimationFrame(() => document.querySelectorAll(".ring:not(.go)").forEach((r) => {
+    r.classList.add("go");
+    const b = r.querySelector("b");
+    countUp(b, Number(b.dataset.count), 0, 1400);
+  })));
+}
+const aqiBand = (n) => (n <= 50 ? 1 : n <= 100 ? 2 : n <= 150 ? 3 : n <= 200 ? 4 : 5);
+// the haze behind the page takes the colour of the air
+const setAtmosphere = (aqi) => { document.documentElement.dataset.aqi = aqiBand(aqi); };
+
 // ---------- theme ----------
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  $("themeBtn").textContent = theme === "dark" ? "☀️" : "🌙";
+  $("themeBtn").innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-${theme === "dark" ? "sun" : "moon"}"/></svg>`;
   $("themeBtn").setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
   if (typeof Chart !== "undefined") {
-    Chart.defaults.color = theme === "dark" ? "#c9dad2" : "#33473f";
-    Chart.defaults.borderColor = theme === "dark" ? "#2c403a" : "#dbe6e0";
+    Chart.defaults.color = theme === "dark" ? "rgba(239,233,221,.7)" : "rgba(34,30,24,.66)";
+    Chart.defaults.borderColor = theme === "dark" ? "rgba(255,240,215,.1)" : "rgba(60,45,20,.12)";
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.animation = { duration: calm ? 0 : 900, easing: "easeOutQuart" };
   }
 }
 $("themeBtn").addEventListener("click", () => {
   const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   try { localStorage.setItem("aps_theme", next); } catch (e) {}
+  // cross-fade the colours instead of snapping
+  document.documentElement.classList.add("theming");
+  setTimeout(() => document.documentElement.classList.remove("theming"), 650);
   applyTheme(next);
   renderAll();
 });
 
-// ---------- mobile menu + active link ----------
-$("menuBtn").addEventListener("click", () => {
-  const open = $("nav").classList.toggle("open");
+// ---------- sidebar drawer (narrow windows) + active link ----------
+function setSidebar(open) {
+  document.body.classList.toggle("side-open", open);
   $("menuBtn").setAttribute("aria-expanded", open);
-});
-$("nav").addEventListener("click", (e) => {
-  if (e.target.tagName === "A") { $("nav").classList.remove("open"); $("menuBtn").setAttribute("aria-expanded", false); }
-});
+  $("menuBtn").setAttribute("aria-label", open ? "Hide sidebar" : "Show sidebar");
+}
+$("menuBtn").addEventListener("click", () => setSidebar(!document.body.classList.contains("side-open")));
+$("scrim").addEventListener("click", () => setSidebar(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") setSidebar(false); });
+$("nav").addEventListener("click", (e) => { if (e.target.closest("a")) setSidebar(false); });
 const navLinks = [...document.querySelectorAll("#nav a")];
+// one pill glides to the active link
+const navInd = document.querySelector(".nav-ind");
+function moveInd() {
+  const a = navLinks.find((x) => x.classList.contains("active"));
+  if (!navInd || !a) return;
+  $("nav").classList.add("has-ind");
+  navInd.style.setProperty("--y", a.offsetTop + "px");
+  navInd.style.height = a.offsetHeight + "px";
+}
+addEventListener("resize", moveInd);
 if ("IntersectionObserver" in window) {
   const seen = new IntersectionObserver((entries) => {
     entries.forEach((en) => {
@@ -75,11 +122,19 @@ if ("IntersectionObserver" in window) {
       navLinks.forEach((a) => {
         const on = a.getAttribute("href") === "#" + en.target.id;
         a.classList.toggle("active", on);
-        if (on) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+        if (on) { a.setAttribute("aria-current", "true"); $("tbTitle").textContent = a.textContent; } else a.removeAttribute("aria-current");
       });
+      moveInd();
     });
   }, { rootMargin: "-30% 0px -60% 0px" });
   navLinks.forEach((a) => { const sec = document.querySelector(a.getAttribute("href")); if (sec) seen.observe(sec); });
+  // sections ease in as they scroll into view (the first one has the page-load entrance)
+  if (!calm) {
+    const rev = new IntersectionObserver((es) => es.forEach((en) => {
+      if (en.isIntersecting) { en.target.classList.add("in"); rev.unobserve(en.target); }
+    }), { threshold: 0.06, rootMargin: "0px 0px -6% 0px" });
+    document.querySelectorAll("main > section:not(#dashboard)").forEach((s) => { s.classList.add("reveal"); rev.observe(s); });
+  }
 }
 
 // ---------- sample data (clearly fake) ----------
@@ -155,7 +210,7 @@ function renderAll() {
 function renderInsights(data, stats) {
   const real = data.filter((o) => !o.sample).length;
   const hasSample = data.some((o) => o.sample);
-  let html = "<h3>Welcome</h3>";
+  let html = '<p class="eyebrow">Summary</p><h3>Welcome</h3>', gauge = "";
   if (!observations.length) {
     html += '<p class="muted">No observations yet. Add your first field measurement below, or explore the dashboard with clearly labelled demo values.</p>' +
       '<button type="button" id="emptySample">Load sample data</button>';
@@ -163,6 +218,8 @@ function renderInsights(data, stats) {
     html += '<p class="muted">No observations match the current filters. Try pressing Reset.</p>';
   } else {
     const top = stats[0], low = stats[stats.length - 1];
+    html = `<p class="eyebrow">Summary</p><h3>${esc(top.name)} is the top hotspot</h3>`;
+    gauge = ring(top.score, 100, "hotspot score", { Low: 1, Moderate: 3, High: 4 }[top.level]);
     const dates = data.map((o) => o.date).sort();
     const heavy = Math.round(avg(data.map((o) => o.heavy)));
     const r = corr(data);
@@ -173,7 +230,8 @@ function renderInsights(data, stats) {
       (data.length > 2 ? `<li>Traffic and dust ${r > 0.5 ? "rise together" : r < -0.5 ? "move in opposite directions" : "show only a weak link"} in this data (correlation ${r.toFixed(2)}). Correlation is not proof of cause.</li>` : "") +
       "</ul>";
   }
-  $("insights").innerHTML = html;
+  $("insights").innerHTML = `<div class="ins-text">${html}</div>${gauge}`;
+  animateRings();
 }
 // Pearson correlation between traffic and dust
 function corr(data) {
@@ -191,15 +249,27 @@ function renderCards(data, stats) {
     ["Avg dust (mg/m²/day)", data.length ? fmt(avg(data.map((o) => o.dust))) : "–"],
     ["Top hotspot", stats.length ? esc(stats[0].name) : "–"],
   ];
-  $("cards").innerHTML = cards.map((c) => `<div class="card"><small>${c[0]}</small><b>${c[1]}</b></div>`).join("");
+  // numbers get the large size; names get the smaller one
+  $("cards").className = "cards" + (cardsFirst ? " enter" : "");
+  $("cards").innerHTML = cards.map((c, i) => `<div class="card" style="--i:${i}"><small>${c[0]}</small><b${/^[\d.–-]+$/.test(String(c[1])) ? "" : ' class="txt"'}>${c[1]}</b></div>`).join("");
+  // a number counts up only when it changed, so filtering feels alive but not twitchy
+  $("cards").querySelectorAll(".card").forEach((card, i) => {
+    const b = card.querySelector("b"), to = parseFloat(cards[i][1]);
+    if (b.classList.contains("txt") || isNaN(to) || prevCards[cards[i][0]] === to) return;
+    prevCards[cards[i][0]] = to;
+    countUp(b, to, String(cards[i][1]).includes(".") ? 1 : 0);
+  });
+  if (cardsFirst) { cardsFirst = false; setTimeout(() => ($("cards").className = "cards"), 1500); }
 }
+const prevCards = {};
+let cardsFirst = true;
 
 function renderTable(data) {
   const rows = [...data].sort((a, b) => b.date.localeCompare(a.date));
   $("obsBody").innerHTML = rows.length
     ? rows.map((o) => `<tr>
         <td>${esc(o.date)}</td><td>${esc(o.location)}${o.sample ? ' <span class="pill sample">Sample</span>' : ""}</td>
-        <td>${esc(o.slot)}</td><td>${o.traffic}</td><td>${o.heavy}</td><td>${o.dust}</td>
+        <td>${esc(o.slot)}</td><td class="num">${o.traffic}</td><td class="num">${o.heavy}</td><td class="num">${o.dust}</td>
         <td><button class="small ghost" data-edit="${o.id}">Edit</button><button class="small ghost danger" data-del="${o.id}">Delete</button></td>
       </tr>`).join("")
     : `<tr><td colspan="7" class="muted empty">${observations.length ? "No observations match the current filters." : "No observations yet. Fill in the form to add your first one, or use “Load sample data” above to explore with demo values."}</td></tr>`;
@@ -207,8 +277,8 @@ function renderTable(data) {
 
 function renderHotspots(stats) {
   $("hotBody").innerHTML = stats.length
-    ? stats.map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.name)}</td><td>${Math.round(s.traffic)}</td>
-        <td>${fmt(s.dust)}</td><td>${s.score}</td><td><span class="lvl ${s.level}">${s.level}</span></td></tr>`).join("")
+    ? stats.map((s, i) => `<tr><td class="num">${i + 1}</td><td>${esc(s.name)}</td><td class="num">${Math.round(s.traffic)}</td>
+        <td class="num">${fmt(s.dust)}</td><td class="num">${s.score}</td><td><span class="lvl ${s.level}">${s.level}</span></td></tr>`).join("")
     : '<tr><td colspan="6" class="muted empty">No data for the selected filters. Add observations or load sample data.</td></tr>';
 }
 
@@ -222,7 +292,8 @@ function draw(id, config) {
 function renderCharts(data, stats) {
   if (typeof Chart === "undefined") return; // CDN not loaded (offline)
   const dark = document.documentElement.dataset.theme === "dark";
-  const C1 = dark ? "#4fb3c7" : "#0e5e6f", C2 = dark ? "#e8a35c" : "#c97b2a", C3 = dark ? "#4fc79a" : "#1f7a5a";
+  // sage accent, plus a warm clay for the second series, so colour only ever means data
+  const C1 = dark ? "#7ccdb4" : "#2e7d6b", C2 = dark ? "#e0a87c" : "#b8743f", C3 = C1;
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
   // average per date so each date is one point
   const dates = [...new Set(sorted.map((o) => o.date))];
@@ -248,7 +319,7 @@ function renderSurvey() {
     : "No responses yet.";
   if (typeof Chart === "undefined") return;
   draw("cSurvey", { type: "bar", data: { labels: SYMPTOMS, datasets: [
-    { label: "% of respondents", data: SYMPTOMS.map((s) => (survey.n ? Math.round((survey.counts[s] / survey.n) * 100) : 0)), backgroundColor: document.documentElement.dataset.theme === "dark" ? "#4fc79a" : "#1f7a5a" }] },
+    { label: "% of respondents", data: SYMPTOMS.map((s) => (survey.n ? Math.round((survey.counts[s] / survey.n) * 100) : 0)), backgroundColor: document.documentElement.dataset.theme === "dark" ? "#7ccdb4" : "#2e7d6b" }] },
     options: { indexAxis: "y", scales: { x: { max: 100 } } } });
 }
 
@@ -441,15 +512,42 @@ $("useLoc").addEventListener("click", () => {
     () => toast("Could not get your location.", true));
 });
 
+$("nowBtn").addEventListener("click", () => {
+  if (!$("lat").value || !$("lon").value) { toast("Enter coordinates in Live conditions first."); location.hash = "#live"; return; }
+  $("liveForm").requestSubmit();
+});
+
 $("liveForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const lat = Number($("lat").value), lon = Number($("lon").value);
   save(LIVE_KEY, { lat: $("lat").value, lon: $("lon").value });
   $("liveBtn").disabled = true;
+  $("nowText").textContent = "Fetching…";
+  // shimmering placeholders while the data is on its way
+  $("liveTop").innerHTML = "";
+  $("liveCards").className = "cards";
+  $("liveCards").innerHTML = '<div class="card sk"></div>'.repeat(4);
   const results = await Promise.allSettled(LIVE_SOURCES.map((s) => s.run(lat, lon)));
   $("liveBtn").disabled = false;
-  const cards = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-  $("liveCards").innerHTML = cards.map((c) => `<div class="card"><small>${esc(c[0])}</small><b>${esc(c[1])}</b></div>`).join("");
+  let cards = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+  // the floating bar keeps the headline numbers in view
+  const pick = (label, prefix) => { const c = cards.find((x) => x[0] === label); return c ? prefix + c[1] : ""; };
+  $("nowText").textContent = [pick("AQI (US)", "AQI "), pick("Congestion", "Congestion ")].filter(Boolean).join(" · ") || "Could not fetch live data";
+  $("nowText").classList.remove("bump"); void $("nowText").offsetWidth; $("nowText").classList.add("bump");
+  $("nowBtn").textContent = "Refresh";
+  // the AQI becomes an iris, and the haze behind the page takes its colour
+  const aqiCard = cards.find((c) => c[0] === "AQI (US)"), aqi = aqiCard ? parseInt(aqiCard[1], 10) : NaN;
+  if (!isNaN(aqi)) {
+    const where = cards.find((c) => c[0] === "IQAir station city");
+    $("liveTop").innerHTML = ring(aqi, 300, "US AQI", aqiBand(aqi)) +
+      `<div class="ins-text"><p class="eyebrow">Air right now</p><h3>${esc(String(aqiCard[1]).split(" · ")[1] || "")}</h3>` +
+      (where ? `<p class="muted">Nearest station: ${esc(where[1])}</p>` : "") + "</div>";
+    setAtmosphere(aqi);
+    animateRings();
+    cards = cards.filter((c) => c !== aqiCard && c !== where);
+  }
+  $("liveCards").className = "cards enter";
+  $("liveCards").innerHTML = cards.map((c, i) => `<div class="card" style="--i:${i}"><small>${esc(c[0])}</small><b>${esc(c[1])}</b></div>`).join("");
   $("liveNote").textContent = results.map((r, i) => (r.status === "rejected" ? `${LIVE_SOURCES[i].name} failed: ${r.reason.message}.` : "")).join("");
 });
 
