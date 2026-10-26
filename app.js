@@ -341,7 +341,7 @@ $("exportCsv").addEventListener("click", () => {
   if (!observations.length) { toast("Nothing to export yet.", true); return; }
   const cell = (v) => {
     let t = String(v ?? "");
-    if (/^[=+\-@]/.test(t)) t = "'" + t; // stop spreadsheet formula injection
+    if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; // stop spreadsheet formula injection
     return '"' + t.replace(/"/g, '""') + '"';
   };
   const head = ["Date", "Location", "Time slot", "Vehicles per hour", "Heavy vehicles %", "Dust mg/m2/day", "Notes", "Sample data"];
@@ -349,7 +349,7 @@ $("exportCsv").addEventListener("click", () => {
   const blob = new Blob(["\ufeff" + [head.map(cell).join(",")].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "air-pollution-observations.csv";
+  a.download = "vayudrishti-observations.csv";
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
   toast("CSV exported.");
