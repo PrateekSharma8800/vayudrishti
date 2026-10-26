@@ -110,7 +110,7 @@ test("says which key is missing instead of calling the provider", async () => {
   try {
     const r = await fetch(b + "/api/aqi?lat=1&lon=1");
     assert.equal(r.status, 500);
-    assert.deepEqual(await r.json(), { error: "IQAIR_API_KEY is missing in .env" });
+    assert.deepEqual(await r.json(), { error: "IQAIR_API_KEY is missing on the server" });
   } finally { child.kill(); }
 });
 
@@ -120,5 +120,93 @@ test("answers 502 when the provider is unreachable", async () => {
     const r = await fetch(b + "/api/aqi?lat=1&lon=1");
     assert.equal(r.status, 502);
     assert.deepEqual(await r.json(), { error: "could not reach the data provider" });
+  } finally { child.kill(); }
+});
+
+// ---- deployment features: health check, cache, limits, CSP ----
+const fs = require("node:fs");
+const crypto = require("node:crypto");
+const hitsFor = (p) => seen.filter((u) => u.includes(p)).length;
+
+test("/healthz answers ok for platform health checks", async () => {
+  const r = await fetch(base + "/healthz");
+  assert.equal(r.status, 200);
+  assert.equal(await r.text(), "ok");
+});
+
+test("a good reading is cached, so repeat requests do not use the provider's quota", async () => {
+  seen.length = 0;
+  const first = await fetch(base + "/api/aqi?lat=28.5001&lon=77.1001");
+  const second = await fetch(base + "/api/aqi?lat=28.5001&lon=77.1001");
+  assert.equal(first.headers.get("x-cache"), "MISS");
+  assert.equal(second.headers.get("x-cache"), "HIT");
+  assert.equal(hitsFor("lat=28.5001"), 1);
+  assert.deepEqual(await second.json(), await first.json());
+});
+
+test("errors are never cached", async () => {
+  const { child, base: b } = await startServer({ IQAIR_API_KEY: "bad", IQAIR_BASE: `http://127.0.0.1:${providerPort}` });
+  try {
+    seen.length = 0;
+    for (let i = 0; i < 2; i++) assert.equal((await fetch(b + "/api/aqi?lat=1&lon=1")).status, 403);
+    assert.equal(hitsFor("key=bad"), 2);
+  } finally { child.kill(); }
+});
+
+test("a client that sends too many API requests gets 429 with Retry-After", async () => {
+  const { child, base: b } = await startServer({ IQAIR_API_KEY: "k", IQAIR_BASE: `http://127.0.0.1:${providerPort}`, RATE_LIMIT: "3" });
+  try {
+    for (let i = 0; i < 3; i++) assert.equal((await fetch(`${b}/api/aqi?lat=${i}&lon=1`)).status, 200);
+    const r = await fetch(b + "/api/aqi?lat=9&lon=1");
+    assert.equal(r.status, 429);
+    assert.ok(Number(r.headers.get("retry-after")) > 0);
+    assert.equal((await fetch(b + "/")).status, 200, "the page itself is not rate limited");
+  } finally { child.kill(); }
+});
+
+test("X-Forwarded-For is ignored unless TRUST_PROXY=1, then it separates clients", async () => {
+  const hit = (b, ip) => fetch(`${b}/api/aqi?lat=1&lon=1`, { headers: { "X-Forwarded-For": ip } }).then((r) => r.status);
+  const env = { IQAIR_API_KEY: "k", IQAIR_BASE: `http://127.0.0.1:${providerPort}`, RATE_LIMIT: "1" };
+  const plain = await startServer(env);
+  try {
+    assert.equal(await hit(plain.base, "1.1.1.1"), 200);
+    assert.equal(await hit(plain.base, "2.2.2.2"), 429, "a spoofed header must not dodge the limit");
+  } finally { plain.child.kill(); }
+  const behind = await startServer({ ...env, TRUST_PROXY: "1" });
+  try {
+    assert.equal(await hit(behind.base, "1.1.1.1"), 200);
+    assert.equal(await hit(behind.base, "2.2.2.2"), 200, "a different client gets its own allowance");
+    assert.equal(await hit(behind.base, "1.1.1.1"), 429);
+  } finally { behind.child.kill(); }
+});
+
+test("the daily cap stops calls to a provider but still serves cached readings", async () => {
+  const { child, base: b } = await startServer({ IQAIR_API_KEY: "k", IQAIR_BASE: `http://127.0.0.1:${providerPort}`, DAILY_UPSTREAM_CAP: "1" });
+  try {
+    assert.equal((await fetch(b + "/api/aqi?lat=5&lon=5")).status, 200);
+    assert.equal((await fetch(b + "/api/aqi?lat=5&lon=5")).status, 200, "cached, so it costs nothing");
+    const over = await fetch(b + "/api/aqi?lat=6&lon=6");
+    assert.equal(over.status, 429);
+    assert.match((await over.json()).error, /daily limit/);
+  } finally { child.kill(); }
+});
+
+test("the page carries a content security policy that allows exactly its inline script", async () => {
+  const r = await fetch(base + "/");
+  const csp = r.headers.get("content-security-policy");
+  assert.match(csp, /default-src 'self'/);
+  assert.match(csp, /frame-ancestors 'self'/);
+  assert.match(csp, /object-src 'none'/);
+  const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
+  const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => crypto.createHash("sha256").update(m[1].replace(/\r\n?/g, "\n")).digest("base64"));
+  assert.ok(inline.length >= 1);
+  for (const h of inline) assert.ok(csp.includes(`'sha256-${h}'`), "the inline script's hash is listed");
+  assert.equal(/unsafe-inline/.test(csp.match(/script-src[^;]*/)[0]), false, "scripts never get unsafe-inline");
+});
+
+test("production mode adds HSTS", async () => {
+  const { child, base: b } = await startServer({ NODE_ENV: "production" });
+  try {
+    assert.match((await fetch(b + "/")).headers.get("strict-transport-security"), /max-age=/);
   } finally { child.kill(); }
 });

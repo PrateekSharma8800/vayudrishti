@@ -395,6 +395,7 @@ function loadSample() {
   renderAll();
 }
 $("loadSample").addEventListener("click", loadSample);
+$("guideSample").addEventListener("click", loadSample);
 $("removeSample").addEventListener("click", () => {
   if (!observations.some((o) => o.sample) && !survey.sample) { toast("No sample data to remove.", true); return; }
   if (survey.sample && survey.n > 40 && !confirm("Survey totals include sample data plus your responses. Removing sample data resets the survey. Continue?")) return;
@@ -577,12 +578,71 @@ const LIVE_SOURCES = [
   { name: "TomTom", run: fetchTraffic },
 ];
 
-["lat", "lon"].forEach((id) => ($(id).value = live[id] || ""));
+// Delhi NCR places for the dropdown, so nobody needs to know a latitude. Positions are approximate
+// (a few hundred metres), which is enough: AQI comes from the nearest station city and traffic
+// from the nearest road.
+const PLACES = [
+  ["Delhi", [
+    ["Connaught Place", 28.6315, 77.2167], ["India Gate", 28.6129, 77.2295], ["Chandni Chowk", 28.6506, 77.2303],
+    ["Karol Bagh", 28.6519, 77.1909], ["ITO", 28.6285, 77.2410], ["Anand Vihar", 28.6469, 77.3164],
+    ["Laxmi Nagar", 28.6304, 77.2773], ["Mayur Vihar", 28.6091, 77.2946], ["Shahdara", 28.6733, 77.2890],
+    ["Lajpat Nagar", 28.5677, 77.2433], ["Nehru Place", 28.5494, 77.2519], ["Okhla Industrial Area", 28.5355, 77.2710],
+    ["Saket", 28.5245, 77.2066], ["Hauz Khas", 28.5494, 77.2001], ["RK Puram", 28.5660, 77.1767],
+    ["Vasant Kunj", 28.5200, 77.1590], ["IGI Airport", 28.5562, 77.1000], ["Dwarka Sector 21", 28.5522, 77.0580],
+    ["Najafgarh", 28.6090, 76.9855], ["Mundka", 28.6819, 77.0301], ["Pitampura", 28.7007, 77.1311],
+    ["Rohini", 28.7140, 77.1180], ["Jahangirpuri", 28.7255, 77.1710], ["Bawana", 28.7762, 77.0511], ["Narela", 28.8527, 77.0929],
+  ]],
+  ["Noida and Greater Noida", [
+    ["Noida Sector 18", 28.5708, 77.3261], ["Noida Sector 62", 28.6270, 77.3650], ["Noida Sector 125", 28.5440, 77.3310],
+    ["Noida Sector 137", 28.5040, 77.4060], ["Greater Noida (Pari Chowk)", 28.4744, 77.5040],
+  ]],
+  ["Gurugram", [
+    ["Cyber Hub", 28.4950, 77.0889], ["MG Road", 28.4796, 77.0800], ["IFFCO Chowk", 28.4720, 77.0720],
+    ["Sector 29", 28.4673, 77.0668], ["Udyog Vihar", 28.5020, 77.0850], ["Golf Course Road", 28.4430, 77.1010], ["Sohna Road", 28.4170, 77.0420],
+  ]],
+  ["Ghaziabad", [
+    ["Indirapuram", 28.6420, 77.3680], ["Vaishali", 28.6450, 77.3390], ["Kaushambi", 28.6450, 77.3270],
+    ["Vasundhara", 28.6600, 77.3600], ["Raj Nagar Extension", 28.6850, 77.4350], ["Loni", 28.7510, 77.2860],
+  ]],
+  ["Faridabad", [
+    ["NIT Faridabad", 28.3940, 77.3100], ["Old Faridabad", 28.4089, 77.3178], ["Ballabgarh", 28.3410, 77.3180],
+  ]],
+];
+const placeValue = ([, lat, lon]) => `${lat},${lon}`;
+$("place").innerHTML = '<option value="">Choose a place…</option>' +
+  PLACES.map(([group, items]) => `<optgroup label="${esc(group)}">${items.map((p) => `<option value="${placeValue(p)}">${esc(p[0])}</option>`).join("")}</optgroup>`).join("") +
+  '<option value="custom">Somewhere else: enter coordinates…</option>';
+const showCoordRow = () => { $("coordRow").hidden = $("place").value !== "custom"; };
+$("place").addEventListener("change", showCoordRow);
+
+// where to fetch: a place from the list, or coordinates typed by hand; null if neither is usable
+function liveTarget() {
+  const v = $("place").value;
+  if (!v) return null;
+  let lat, lon, name;
+  if (v === "custom") {
+    if ($("lat").value === "" || $("lon").value === "") return null;
+    lat = Number($("lat").value); lon = Number($("lon").value);
+    name = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  } else {
+    [lat, lon] = v.split(",").map(Number);
+    name = PLACES.flatMap((g) => g[1]).find((p) => placeValue(p) === v)?.[0] || v;
+  }
+  return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon, name } : null;
+}
+
+// restore the last choice (older versions stored only a latitude and longitude)
+$("lat").value = live.lat || ""; $("lon").value = live.lon || "";
+$("place").value = live.place || (live.lat ? "custom" : "");
+showCoordRow();
 
 $("useLoc").addEventListener("click", () => {
   if (!navigator.geolocation) { toast("Geolocation is not available in this browser.", true); return; }
   navigator.geolocation.getCurrentPosition(
-    (pos) => { $("lat").value = pos.coords.latitude.toFixed(5); $("lon").value = pos.coords.longitude.toFixed(5); },
+    (pos) => {
+      $("place").value = "custom"; showCoordRow();
+      $("lat").value = pos.coords.latitude.toFixed(5); $("lon").value = pos.coords.longitude.toFixed(5);
+    },
     () => toast("Could not get your location.", true));
 });
 
@@ -593,33 +653,38 @@ let autoTimer;
 $("autoLive").addEventListener("change", () => {
   clearInterval(autoTimer);
   if (!$("autoLive").checked) { toast("Auto-refresh is off."); return; }
-  if (!$("lat").value || !$("lon").value) { $("autoLive").checked = false; toast("Enter coordinates first.", true); return; }
+  if (!liveTarget()) { $("autoLive").checked = false; toast("Choose a place first.", true); return; }
   autoTimer = setInterval(() => { if (!document.hidden) $("liveForm").requestSubmit(); }, AUTO_MS);
   toast("Live data will refresh every 15 minutes while this tab is open.");
   $("liveForm").requestSubmit();
 });
 
 $("nowBtn").addEventListener("click", () => {
-  if (!$("lat").value || !$("lon").value) { toast("Enter coordinates in Live conditions first."); location.hash = "#live"; return; }
+  if (!liveTarget()) { toast("Choose a place in Live conditions first."); location.hash = "#live"; return; }
   $("liveForm").requestSubmit();
 });
 
 $("liveForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const lat = Number($("lat").value), lon = Number($("lon").value);
-  save(LIVE_KEY, { lat: $("lat").value, lon: $("lon").value });
+  const target = liveTarget();
+  if (!target) {
+    toast($("place").value === "custom" ? "Enter a latitude (-90 to 90) and a longitude (-180 to 180)." : "Choose a place first.", true);
+    return;
+  }
+  save(LIVE_KEY, { place: $("place").value, lat: $("lat").value, lon: $("lon").value });
   $("liveBtn").disabled = true;
   $("nowText").textContent = "Fetching…";
   // shimmering placeholders while the data is on its way
   $("liveTop").innerHTML = "";
   $("liveCards").className = "cards";
   $("liveCards").innerHTML = '<div class="card sk"></div>'.repeat(4);
-  const results = await Promise.allSettled(LIVE_SOURCES.map((s) => s.run(lat, lon)));
+  const results = await Promise.allSettled(LIVE_SOURCES.map((s) => s.run(target.lat, target.lon)));
   $("liveBtn").disabled = false;
   let cards = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   // the floating bar keeps the headline numbers in view
   const pick = (label, prefix) => { const c = cards.find((x) => x[0] === label); return c ? prefix + c[1] : ""; };
-  $("nowText").textContent = [pick("AQI (US)", "AQI "), pick("Congestion", "Congestion ")].filter(Boolean).join(" · ") || "Could not fetch live data";
+  const headline = [pick("AQI (US)", "AQI "), pick("Congestion", "Congestion ")].filter(Boolean).join(" · ");
+  $("nowText").textContent = headline ? `${target.name} · ${headline}` : "Could not fetch live data";
   $("nowText").classList.remove("bump"); void $("nowText").offsetWidth; $("nowText").classList.add("bump");
   $("nowBtn").textContent = "Refresh";
   // the AQI becomes an iris, and the haze behind the page takes its colour
@@ -627,7 +692,7 @@ $("liveForm").addEventListener("submit", async (e) => {
   if (!isNaN(aqi)) {
     const where = cards.find((c) => c[0] === "IQAir station city");
     $("liveTop").innerHTML = ring(aqi, 300, "US AQI", aqiBand(aqi)) +
-      `<div class="ins-text"><p class="eyebrow">Air right now</p><h3>${esc(String(aqiCard[1]).split(" · ")[1] || "")}</h3>` +
+      `<div class="ins-text"><p class="eyebrow">Air near ${esc(target.name)}</p><h3>${esc(String(aqiCard[1]).split(" · ")[1] || "")}</h3>` +
       (where ? `<p class="muted">Nearest station: ${esc(where[1])}</p>` : "") + "</div>";
     setAtmosphere(aqi);
     animateRings();
