@@ -147,3 +147,35 @@ test("the floating bar asks for coordinates before fetching", async () => {
   assert.match(app.els.toast.textContent, /Enter coordinates/);
   assert.equal(app.ctx.location.hash, "#live");
 });
+
+test("auto-refresh is opt-in, runs every 15 minutes, and skips hidden tabs", async () => {
+  let calls = 0;
+  const app = loadApp({ fetch: async (u) => { calls++; return json(u.startsWith("/api/aqi") ? AQI : TRAFFIC); } });
+  fill(app, { lat: "28.6", lon: "77.2" });
+  assert.equal(app.intervals.length, 0, "nothing is scheduled by default");
+
+  app.els.autoLive.checked = true;
+  await app.els.autoLive.trigger("change");
+  assert.equal(calls, 2, "it fetches once right away (AQI and traffic)");
+  assert.equal(app.intervals.length, 1);
+  assert.equal(app.intervals[0].ms, 15 * 60 * 1000);
+
+  await app.intervals[0].fn();
+  assert.equal(calls, 4);
+  app.ctx.document.hidden = true;
+  await app.intervals[0].fn();
+  assert.equal(calls, 4, "a hidden tab does not spend quota");
+
+  app.els.autoLive.checked = false;
+  await app.els.autoLive.trigger("change");
+  assert.equal(app.intervals[0].active, false);
+});
+
+test("auto-refresh refuses to start without coordinates", async () => {
+  const app = loadApp();
+  app.els.autoLive.checked = true;
+  await app.els.autoLive.trigger("change");
+  assert.equal(app.els.autoLive.checked, false);
+  assert.equal(app.intervals.filter((i) => i.active).length, 0);
+  assert.match(app.els.toast.textContent, /Enter coordinates first/);
+});

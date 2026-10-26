@@ -50,7 +50,7 @@ TOMTOM_API_KEY=...
 Put them in `.env`, which is git-ignored. `server.js` adds the keys to the API calls itself, so they are never sent to the browser or committed. It serves only `index.html`, `app.js` and `style.css`, and listens on `127.0.0.1`.
 
 - It is meant for **local use**. If you deploy it publicly, put it behind your own authentication and rate limiting first.
-- Free IQAir keys are rate limited, so the page fetches only when you press **Fetch**.
+- Free IQAir keys are rate limited, so the page fetches only when you press **Fetch**. You can opt in to **Refresh every 15 minutes**; it pauses while the tab is hidden.
 - TomTom reports speed and congestion on the nearest road, **not vehicle counts**, so it complements the vehicles per hour you count in the field instead of replacing it.
 
 ## How the hotspot score works
