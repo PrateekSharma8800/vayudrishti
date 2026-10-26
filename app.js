@@ -423,7 +423,7 @@ async function fetchTraffic(lat, lon, key) {
   const jam = f.freeFlowSpeed ? Math.max(0, Math.round((1 - f.currentSpeed / f.freeFlowSpeed) * 100)) + "%" : "–";
   return [
     ["Traffic speed", `${f.currentSpeed} km/h (free flow ${f.freeFlowSpeed})`],
-    ["Congestion", f.roadClosure ? "Road closed" : jam],
+    ["Congestion", jam + (f.roadClosure ? " · closure reported" : "")],
     ["Traffic data confidence", Math.round(f.confidence * 100) + "%"],
   ];
 }
