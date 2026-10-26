@@ -9,6 +9,8 @@ const config = {
   $schema: "https://openapi.vercel.sh/vercel.json",
   framework: null, buildCommand: null, installCommand: null, // nothing to build or install
   outputDirectory: "public",
+  // XKDR history queries can take longer than a live reading (lib/xkdr.js times out at 25 seconds)
+  functions: { "api/*.js": { maxDuration: 30 } },
   headers: [{ source: "/(.*)", headers: Object.entries(securityHeaders(html, { https: true })).map(([key, value]) => ({ key, value })) }],
 };
 const text = JSON.stringify(config, null, 2) + "\n";

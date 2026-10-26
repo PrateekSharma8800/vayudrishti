@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&family=Inter:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -32,6 +34,7 @@
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
       <symbol id="i-loc" viewBox="0 0 24 24"><path d="M20 4 4.5 10.5l6.2 2.8 2.8 6.2z"/></symbol>
+      <symbol id="i-map" viewBox="0 0 24 24"><path d="M3.5 6.5 9 4.5l6 2 5.5-2v13l-5.5 2-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/></symbol>
     </defs>
   </svg>
 
@@ -62,6 +65,7 @@
         <span class="nav-ind" aria-hidden="true"></span>
         <a href="#dashboard"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg>Dashboard</a>
         <a href="#live"><svg class="ic" aria-hidden="true"><use href="#i-live"/></svg>Live</a>
+        <a href="#stations"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg>Stations</a>
         <a href="#observe"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg>Observations</a>
         <a href="#charts"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg>Charts</a>
         <a href="#hotspots"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>Hotspots</a>
@@ -118,6 +122,54 @@
             </div>
             <p class="muted" id="liveNote" aria-live="polite"></p>
             <p class="muted">How to read this: the <strong>AQI</strong> comes from the nearest IQAir monitoring station, so places in the same city often show the same number. The <strong>traffic</strong> numbers are for the road at the place you picked, so they differ from place to place. TomTom reports speed and congestion, not vehicle counts, so it does not replace the vehicles per hour you count yourself in Observations. The server keeps readings for a few minutes, so pressing Fetch repeatedly will not change them.</p>
+          </div>
+        </section>
+
+        <section id="stations">
+          <h2>Monitoring stations <span class="pill">Archived · not live</span></h2>
+          <p class="lead">Real PM2.5 and PM10 measured by Delhi's official monitoring stations (CPCB CAAQM and the US Embassy), from the India Air Quality Database by XKDR Forum. It is an <strong>archive, not a live feed</strong>, and it is kept apart from your own observations: it never enters the cards, hotspots or CSV export. For today's official AQI, see the <a href="https://aqi.delhi.gov.in/live" target="_blank" rel="noopener">Delhi AQI portal</a> or <a href="#live">Live conditions</a>.</p>
+
+          <div class="panel" id="official">
+            <h3>Latest archived readings</h3>
+            <p id="oStatus" class="hstatus" role="status" aria-live="polite">Station data loads when you reach this section.</p>
+            <div class="tablewrap">
+              <table>
+                <caption class="sr">Latest archived PM2.5 and PM10 readings at Delhi monitoring stations</caption>
+                <thead><tr><th>Station</th><th>PM2.5</th><th>PM10</th><th>Observed (IST)</th><th>Source</th><th><span class="sr">Actions</span></th></tr></thead>
+                <tbody id="oBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel" id="stationMap">
+            <h3>Station map</h3>
+            <div class="filters">
+              <label>Search stations <input type="search" id="mSearch" list="mNames" placeholder="e.g. Anand Vihar" autocomplete="off"></label>
+              <datalist id="mNames"></datalist>
+              <button type="button" class="ghost" id="mFit">Show all stations</button>
+            </div>
+            <p id="mStatus" class="hstatus" role="status" aria-live="polite"></p>
+            <div class="mapgrid">
+              <div id="mapView" class="mapview" role="region" aria-label="Map of Delhi air quality monitoring stations"></div>
+              <div id="mDetail" class="mdetail" aria-live="polite"><p class="muted">Select a station on the map, or search for one by name.</p></div>
+            </div>
+            <p class="muted legend"><span class="dot cpcb"></span>CPCB CAAQM station <span class="dot embassy"></span>US Embassy monitor (AirNow)</p>
+          </div>
+
+          <div class="panel" id="history">
+            <h3>Historical PM2.5 and PM10</h3>
+            <form id="histForm" class="filters">
+              <label>Station <select id="hStation"><option value="all">All Delhi stations (average)</option></select></label>
+              <label>From <input type="date" id="hFrom" required></label>
+              <label>To <input type="date" id="hTo" required></label>
+              <label>Resolution
+                <select id="hAgg"><option value="daily">Daily mean (max 92 days)</option><option value="hourly">Hourly (max 7 days)</option></select>
+              </label>
+              <button type="submit" id="hLoad">Load historical data</button>
+            </form>
+            <p id="hStatus" class="hstatus" role="status" aria-live="polite"></p>
+            <div class="chart" id="hChartBox" hidden><canvas id="cHistory" role="img" aria-label="Line chart of historical PM2.5 and PM10"></canvas></div>
+            <ul id="hMeta" class="hmeta"></ul>
           </div>
         </section>
 
@@ -307,6 +359,7 @@
   <footer class="foot">
     <p>Made for field studies. Sample data is for demonstration only; your data stays in this browser.</p>
     <p class="srcs">Live data <i></i>IQAir <i></i>TomTom <i></i>Chart.js</p>
+    <p>Station readings: <a href="https://airquality.xkdr.org" target="_blank" rel="noopener">India Air Quality Database, XKDR Forum</a> (CC BY 4.0), compiled from CPCB CAAQM and the US Department of State via AirNow. Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.</p>
     <p><a href="#method">Methodology</a></p>
   </footer>
   <div class="nowbar" id="nowBar" role="region" aria-label="Live conditions summary">

@@ -235,6 +235,8 @@ function renderAll() {
   renderCharts(data, stats);
   renderSurvey();
   renderLiveHistory();
+  if (hist) renderHistory(); // redraw for theme changes; station data is not affected by the filters
+  styleMarkers();
   $("sampleBanner").hidden = !observations.some((o) => o.sample) && !survey.sample;
 }
 
@@ -970,6 +972,339 @@ $("liveForm").addEventListener("submit", async (e) => {
   renderLiveHistory();
   $("liveNote").textContent = results.map((r, i) => (r.status === "rejected" ? `${LIVE_SOURCES[i].name} failed: ${r.reason.message}.` : "")).join("");
 });
+
+// ---------- monitoring stations: archived official PM2.5 / PM10 from XKDR ----------
+// Kept separate from `observations`: never saved, never used in hotspots, correlation or CSV export.
+// The XKDR key stays on the server (lib/xkdr.js); the page only calls /api/stations, /api/latest,
+// /api/latest-all and /api/history.
+const PM_TYPES = ["PM2.5", "PM10"];
+const HIST_MAX_DAYS = { daily: 92, hourly: 7 };
+let hist = null; // last successful /api/history response
+
+const IST_FORMATS = {
+  day: { day: "numeric", month: "short", year: "numeric" },
+  hour: { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
+  full: { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
+};
+// show a time in Indian Standard Time, whatever the viewer's own time zone is
+function ist(iso, style) {
+  if (!iso) return "unknown";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso += "T00:00:00+05:30";
+  const text = new Intl.DateTimeFormat("en-IN", Object.assign({ timeZone: "Asia/Kolkata" }, IST_FORMATS[style])).format(new Date(iso));
+  return style === "full" ? text + " IST" : text;
+}
+// calendar maths on "YYYY-MM-DD" strings (UTC on purpose, so no time-zone shift)
+const shiftDay = (day, n) => new Date(Date.parse(day + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+
+function setStatus(id, msg, kind) {
+  $(id).textContent = msg;
+  $(id).className = "hstatus" + (kind ? " " + kind : "");
+}
+const histStatus = (msg, kind) => setStatus("hStatus", msg, kind);
+const mapStatus = (msg, kind) => setStatus("mStatus", msg, kind);
+const officialStatus = (msg, kind) => setStatus("oStatus", msg, kind);
+const retryHint = (err, again) => (err.retryAfter ? ` Wait ${err.retryAfter} seconds, then ${again}.` : err.retryable ? ` ${again[0].toUpperCase() + again.slice(1)} to retry.` : "");
+
+function clearHistory() {
+  hist = null;
+  if (charts.cHistory) { charts.cHistory.destroy(); delete charts.cHistory; }
+  $("hChartBox").hidden = true;
+  $("hMeta").innerHTML = "";
+}
+
+// GET JSON from an XKDR route; throws an Error with a readable message
+async function xkdrJson(url) {
+  let res, body = null;
+  try { res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(40000) }); }
+  catch (e) { throw Object.assign(new Error("Could not reach the server."), { retryable: true }); }
+  try { body = await res.json(); } catch (e) { /* not JSON */ }
+  if (!body) throw Object.assign(new Error(`The server sent an unreadable answer (HTTP ${res.status}).`), { retryable: true });
+  if (!res.ok) {
+    const err = new Error((body.error && body.error.message) || (typeof body.error === "string" && body.error) || "Request failed (HTTP " + res.status + ").");
+    err.retryAfter = body.error && body.error.retry_after;
+    err.retryable = res.status === 429 || res.status >= 500;
+    throw err;
+  }
+  return body;
+}
+
+// fill the station list and the allowed date range
+async function loadStations() {
+  histStatus("Loading the station list from XKDR…");
+  try {
+    const s = await xkdrJson("/api/stations");
+    const from = s.coverage.from, to = s.coverage.to;
+    $("hStation").innerHTML = '<option value="all">All Delhi stations (average)</option>' + s.stations.map((st) => {
+      const ends = st.to && st.to.slice(0, 10) < shiftDay(to, -7) ? ` – data until ${ist(st.to, "day")}` : "";
+      return `<option value="${esc(st.id)}">${esc(st.name)} (${esc(st.id)})${esc(ends)}</option>`;
+    }).join("");
+    ["hFrom", "hTo"].forEach((id) => { $(id).min = from; $(id).max = to; });
+    $("hTo").value = to;
+    $("hFrom").value = shiftDay(to, -29) < from ? from : shiftDay(to, -29);
+    histStatus(`Historical data only: XKDR's Delhi readings run from ${ist(from, "day")} to ${ist(to, "day")} (dataset exported ${ist(s.dataset_exported_at, "full")}). Choose a range and press “Load historical data”.`);
+    try { initMap(s); } catch (e) { mapStatus("The station map could not be drawn in this browser.", "error"); }
+  } catch (e) {
+    histStatus(e.message + retryHint(e, "reload the page"), "error");
+    mapStatus("The station map needs the station list, which did not load.", "error");
+  }
+}
+
+$("histForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const start = $("hFrom").value, end = $("hTo").value, agg = $("hAgg").value;
+  if (!start || !end || start > end) { histStatus("Choose a start date on or before the end date.", "error"); return; }
+  const days = Math.round((Date.parse(end) - Date.parse(start)) / 864e5) + 1;
+  if (days > HIST_MAX_DAYS[agg]) {
+    histStatus(`${agg === "daily" ? "Daily" : "Hourly"} view is limited to ${HIST_MAX_DAYS[agg]} days – you chose ${days}. Shorten the range.`, "error");
+    return;
+  }
+  clearHistory();
+  $("hLoad").disabled = true;
+  $("history").setAttribute("aria-busy", "true");
+  histStatus("Loading historical data from XKDR…");
+  try {
+    hist = await xkdrJson("/api/history?" + new URLSearchParams({ station: $("hStation").value, start, end, agg }));
+    renderHistory();
+  } catch (err) {
+    clearHistory();
+    histStatus(err.message + retryHint(err, "press “Load historical data”"), "error");
+  } finally {
+    $("hLoad").disabled = false;
+    $("history").removeAttribute("aria-busy");
+  }
+});
+
+function renderHistory() {
+  const h = hist, hourly = h.query.agg === "hourly", single = h.station.id !== "all";
+  const total = h.periods.length, word = hourly ? "hours" : "days";
+  const unit = (p) => h.units[p] || "unit not reported";
+  $("hMeta").innerHTML = [
+    `<strong>Historical data – not live.</strong> Source: <a href="${esc(h.source.url)}" target="_blank" rel="noopener">${esc(h.source.name)}</a> (${esc(h.source.licence)}), compiled from ${esc(h.source.upstream)}. ${esc(h.source.note)}`,
+    single
+      ? `Station: ${esc(h.station.name)} (${esc(h.station.id)}, ${esc(h.station.source)})`
+      : `Stations: ${esc(h.station.name)} – ${h.station.reporting} of ${h.station.total} Delhi stations reported in this period`,
+    `Period: ${ist(h.query.start, "day")} – ${ist(h.query.end, "day")} · ${hourly ? "hourly" : "daily"} means · all times in IST (Asia/Kolkata)`,
+    `Units (as reported by the source): ${PM_TYPES.map((p) => `${p} ${esc(unit(p))}`).join(", ")}`,
+    `Missing: ${PM_TYPES.map((p) => `${p} ${h.series[p].missing} of ${total} ${word}`).join(", ")} – shown as gaps, not filled in.` +
+      (single && !hourly ? " Hollow points: fewer than 16 hourly readings that day." : ""),
+    `Dataset exported ${ist(h.freshness.dataset_exported_at, "full")} · latest reading for this selection ${ist(h.freshness.latest_reading, "full")} · fetched ${ist(h.freshness.fetched_at, "full")}`,
+  ].map((t) => `<li>${t}</li>`).join("");
+
+  if (PM_TYPES.every((p) => h.series[p].missing === total)) {
+    if (charts.cHistory) { charts.cHistory.destroy(); delete charts.cHistory; }
+    $("hChartBox").hidden = true;
+    histStatus("No PM2.5 or PM10 readings were returned for this station and period. This means the station did not report – not that the air was clean.", "warn");
+    return;
+  }
+  histStatus(`Showing ${h.rows} historical records (not live).` + (h.notices.length ? " " + h.notices.join(" ") : ""), h.notices.length ? "warn" : "");
+  if (typeof Chart === "undefined") { histStatus("The chart library could not load (are you offline?), so the data cannot be drawn.", "error"); return; }
+
+  const { C1, C2 } = palette(), colors = { "PM2.5": C1, PM10: C2 };
+  $("hChartBox").hidden = false;
+  draw("cHistory", { type: "line", data: { labels: h.periods.map((t) => ist(t, hourly ? "hour" : "day")), datasets: PM_TYPES.map((p) => ({
+    label: `${p} (${unit(p)})`, data: h.series[p].values, borderColor: colors[p], backgroundColor: colors[p],
+    pointBackgroundColor: (c) => (h.series[p].low[c.dataIndex] ? "transparent" : colors[p]),
+    pointRadius: hourly ? 1.5 : 3, spanGaps: false, tension: 0.2 })) },
+    options: {
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { title: { display: true, text: hourly ? "Hour (IST)" : "Date (IST)" } },
+        y: { beginAtZero: true, title: { display: true, text: `Concentration (${[...new Set(PM_TYPES.map(unit))].join(" / ")})` } },
+      },
+      plugins: { tooltip: { callbacks: {
+        label: (c) => { const p = PM_TYPES[c.datasetIndex]; return c.raw === null ? `${p}: no reading` : `${p}: ${fmt(c.raw)} ${unit(p)}`; },
+        afterLabel: (c) => {
+          const s = h.series[PM_TYPES[c.datasetIndex]], n = s.coverage[c.dataIndex];
+          if (c.raw === null) return "";
+          if (!single) return `  ${n} of ${h.station.total} stations reporting`;
+          return hourly ? "" : `  ${n}/24 hourly readings` + (s.low[c.dataIndex] ? " – low coverage" : "");
+        },
+      } } },
+    } });
+}
+
+// ---- station map (real XKDR coordinates, Leaflet + OpenStreetMap) ----
+let map = null, mapSelected = null;
+const markers = {}; // station id -> { station, marker }
+
+function markerColor(st) {
+  const { C1, C2 } = palette();
+  return /embassy/i.test(st.source) ? C2 : C1;
+}
+function styleMarkers() {
+  const q = $("mSearch").value.trim().toLowerCase();
+  Object.values(markers).forEach(({ station, marker }) => {
+    const match = !q || station.name.toLowerCase().includes(q) || station.id.toLowerCase().includes(q);
+    const on = station.id === mapSelected;
+    marker.setStyle({ color: on ? "#f0b54d" : "#fff", weight: on ? 4 : 1.5, fillColor: markerColor(station), fillOpacity: match ? 0.9 : 0.15, opacity: match ? 1 : 0.3 });
+    if (on) marker.bringToFront();
+  });
+}
+function fitAll() {
+  const pts = Object.values(markers).map((m) => m.marker.getLatLng());
+  if (map && pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [24, 24], maxZoom: 14 });
+}
+
+function initMap(s) {
+  if (typeof L === "undefined") { mapStatus("The map library could not load (are you offline?), so the station map cannot be shown.", "error"); return; }
+  const placed = s.stations.filter((st) => Number.isFinite(st.latitude) && Number.isFinite(st.longitude));
+  const skipped = s.stations.length - placed.length;
+  if (!placed.length) { mapStatus("XKDR returned no station coordinates, so there is nothing to place on the map.", "warn"); return; }
+
+  map = L.map("mapView", { scrollWheelZoom: false });
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    // the page sends no referrer, but OpenStreetMap's tile policy asks for one
+    referrerPolicy: "strict-origin-when-cross-origin",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Stations: <a href="https://airquality.xkdr.org">India Air Quality Database, XKDR Forum</a>',
+  }).addTo(map);
+  const layer = L.layerGroup().addTo(map);
+  placed.forEach((st) => {
+    const marker = L.circleMarker([st.latitude, st.longitude], { radius: 8 })
+      .bindTooltip(esc(st.name))
+      .on("click", () => selectStation(st.id));
+    marker.addTo(layer);
+    markers[st.id] = { station: st, marker };
+  });
+  $("mNames").innerHTML = placed.map((st) => `<option value="${esc(st.name)}">`).join("");
+  styleMarkers();
+  fitAll();
+  mapStatus(`${placed.length} Delhi stations placed at the coordinates XKDR lists for them.` +
+    (skipped ? ` ${skipped} station(s) have no coordinates and are not shown.` : ""));
+}
+
+// search: dim non-matching markers while typing; Enter (or picking a suggestion) selects a station
+function searchMatches() {
+  const q = $("mSearch").value.trim().toLowerCase();
+  const all = Object.values(markers).map((m) => m.station);
+  if (!q) return [];
+  const exact = all.filter((st) => st.name.toLowerCase() === q || st.id.toLowerCase() === q);
+  return exact.length ? exact : all.filter((st) => st.name.toLowerCase().includes(q) || st.id.toLowerCase().includes(q));
+}
+$("mSearch").addEventListener("input", () => {
+  styleMarkers();
+  const q = $("mSearch").value.trim().toLowerCase();
+  if (q && Object.values(markers).some((m) => m.station.name.toLowerCase() === q)) selectStation(searchMatches()[0].id);
+});
+$("mSearch").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  if (!map) return;
+  const found = searchMatches();
+  if (!found.length) { mapStatus(`No station matches “${$("mSearch").value.trim()}”.`, "warn"); return; }
+  if (found.length > 1) {
+    map.fitBounds(L.latLngBounds(found.map((st) => [st.latitude, st.longitude])), { padding: [24, 24], maxZoom: 14 });
+    mapStatus(`${found.length} stations match – highlighted on the map. Pick one from the suggestions or click a marker.`);
+    return;
+  }
+  selectStation(found[0].id);
+});
+$("mFit").addEventListener("click", () => {
+  if (!map) return;
+  $("mSearch").value = "";
+  styleMarkers();
+  fitAll();
+});
+
+async function selectStation(id) {
+  const m = markers[id];
+  if (!m) return;
+  mapSelected = id;
+  styleMarkers();
+  map.setView(m.marker.getLatLng(), Math.max(map.getZoom(), 13));
+  const st = m.station;
+  $("mDetail").innerHTML = `<h3>${esc(st.name)}</h3><p class="muted">Loading the latest archived reading from XKDR…</p>`;
+  try {
+    const r = await xkdrJson("/api/latest?" + new URLSearchParams({ station: id }));
+    if (mapSelected === id) renderStation(r);
+  } catch (err) {
+    if (mapSelected !== id) return;
+    $("mDetail").innerHTML = `<h3>${esc(st.name)}</h3><p class="hstatus error">${esc(err.message + retryHint(err, "select the station again"))}</p>`;
+  }
+}
+
+function renderStation(r) {
+  const st = r.station, anyRecent = r.readings.some((x) => x.recent);
+  const ago = (iso) => {
+    const h = (Date.now() - Date.parse(iso)) / 3600e3;
+    return h < 48 ? `${Math.round(h)} hours ago` : `${Math.round(h / 24)} days ago`;
+  };
+  const rows = r.readings.map((x) => x.value === null
+    ? `<tr><th scope="row">${esc(x.parameter)}</th><td colspan="2" class="muted">No reading in XKDR${r.searched ? ` for ${ist(r.searched.from, "day")} – ${ist(r.searched.to, "day")}` : ""}</td></tr>`
+    : `<tr><th scope="row">${esc(x.parameter)}</th><td><b>${esc(fmt(x.value))}</b> ${esc(x.unit || "unit not reported")}</td><td>${ist(x.observed_at, "full")}<br><span class="muted">${ago(x.observed_at)}</span></td></tr>`).join("");
+  $("mDetail").innerHTML = `
+    <h3>${esc(st.name)}</h3>
+    <p class="muted">${esc(st.id)} · ${esc(st.source)} · ${esc(st.latitude.toFixed(5))}, ${esc(st.longitude.toFixed(5))}</p>
+    <p class="mbadge${anyRecent ? " ok" : ""}">${anyRecent ? `Reading within the last ${r.recent_hours} hours` : "No recent reading"}</p>
+    <p class="muted">${anyRecent ? "Newest values XKDR holds for this station:" : "Latest archived reading in the dataset (not live, not current air quality):"}</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Pollutant</th><th>Value (as reported)</th><th>Observed (IST)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <ul class="hmeta">
+      <li>Source: <a href="${esc(r.source.url)}" target="_blank" rel="noopener">${esc(r.source.name)}</a> (${esc(r.source.licence)}), data from ${esc(st.source)}. ${esc(r.source.note)}</li>
+      <li>Dataset exported ${ist(r.dataset_exported_at, "full")} · fetched ${ist(r.fetched_at, "full")}</li>
+    </ul>
+    <button type="button" class="ghost" id="mHistory">View history for this station</button>`;
+  $("mHistory").addEventListener("click", () => showHistoryFor(st));
+}
+
+// hand the station over to the historical panel: its last 30 days of data
+function showHistoryFor(st) {
+  if (![...$("hStation").options].some((o) => o.value === st.id)) return;
+  $("hStation").value = st.id;
+  $("hAgg").value = "daily";
+  const last = (st.last_seen || $("hTo").max).slice(0, 10);
+  const end = last > $("hTo").max ? $("hTo").max : last;
+  $("hTo").value = end;
+  $("hFrom").value = shiftDay(end, -29) < $("hFrom").min ? $("hFrom").min : shiftDay(end, -29);
+  $("history").scrollIntoView({ behavior: calm ? "auto" : "smooth" });
+  $("histForm").requestSubmit();
+}
+
+// ---- latest archived readings for every station ----
+async function loadOfficial() {
+  officialStatus("Loading the latest archived PM2.5 and PM10 readings from XKDR…");
+  try {
+    const o = await xkdrJson("/api/latest-all");
+    const recent = o.stations.some((st) => st.readings.some((r) => r.recent));
+    $("oBody").innerHTML = o.stations.map((st) => {
+      const times = st.readings.map((r) => r.observed_at).filter(Boolean).sort();
+      const newest = times[times.length - 1];
+      const cell = (p) => {
+        const r = st.readings.find((x) => x.parameter === p);
+        if (!r || r.value === null) return '<span class="muted">No reading</span>';
+        return `<b>${esc(fmt(r.value))}</b> ${esc(r.unit || "unit not reported")}` + (r.observed_at !== newest ? `<br><span class="muted">${ist(r.observed_at, "full")}</span>` : "");
+      };
+      const status = st.readings.some((r) => r.recent) ? "" : '<br><span class="mbadge">No recent reading</span>';
+      return `<tr><td>${esc(st.name)}</td><td>${cell("PM2.5")}</td><td>${cell("PM10")}</td>
+        <td>${newest ? ist(newest, "full") : "No reading in XKDR"}${status}</td><td>${esc(st.source)}</td>
+        <td><button type="button" class="small ghost" data-map="${esc(st.id)}">Show on map</button></td></tr>`;
+    }).join("");
+    officialStatus(`All ${o.stations.length} Delhi stations. Newest readings in the dataset (exported ${ist(o.dataset_exported_at, "full")})` +
+      (recent ? "." : `: none is from the last ${o.recent_hours} hours, so these are archived values, not current air quality.`), recent ? "" : "warn");
+  } catch (e) {
+    officialStatus(e.message + retryHint(e, "reload the page"), "error");
+  }
+}
+$("oBody").addEventListener("click", (e) => {
+  const id = e.target.dataset.map;
+  if (!id || !markers[id]) return;
+  $("stationMap").scrollIntoView({ behavior: calm ? "auto" : "smooth" });
+  selectStation(id);
+});
+
+// Station data is fetched only when someone scrolls to it, so a visit that never gets there
+// costs nothing from the XKDR quota.
+if ("IntersectionObserver" in window) {
+  const near = new IntersectionObserver((entries) => {
+    if (!entries.some((en) => en.isIntersecting)) return;
+    near.disconnect();
+    loadStations();
+    loadOfficial();
+  }, { rootMargin: "300px 0px" });
+  near.observe($("stations"));
+}
 
 // ---------- start ----------
 applyTheme(document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));

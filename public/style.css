@@ -170,6 +170,27 @@ main > section { margin-bottom: 72px; }
 .advice { max-width: 60ch; margin-top: 12px; font-size: 14px; line-height: 1.6; }
 .advice .muted { display: block; margin-top: 4px; }
 .live-top + .cards { margin-top: 20px; }
+/* monitoring stations (XKDR archive) */
+#stations .panel + .panel { margin-top: 24px; }
+#stations h2 .pill { vertical-align: middle; margin-left: 8px; }
+.hstatus { margin: 16px 0 0; padding: 10px 14px; border-radius: 14px; border-left: 3px solid var(--accent); background: var(--hover); font-size: 13px; line-height: 1.55; }
+.hstatus:empty { display: none; }
+.hstatus.warn { border-left-color: var(--t2); }
+.hstatus.error { border-left-color: var(--t4); }
+.hmeta { margin: 16px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 12.5px; line-height: 1.6; }
+.hmeta:empty { display: none; }
+.hmeta li + li { margin-top: 4px; }
+.mapgrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; align-items: start; margin-top: 16px; }
+.mapview { height: 460px; border-radius: 18px; border: 1px solid var(--line); overflow: hidden; z-index: 0; }
+.mdetail h3 { margin-bottom: 4px; }
+.mdetail .tablewrap { max-height: none; margin-top: 12px; }
+.mdetail td { white-space: normal; }
+.mbadge { display: inline-block; margin: 6px 0; padding: 2px 10px; border-radius: 9999px; font: 600 11.5px/1.5 var(--font); border: 1px solid var(--t2); background: var(--hover); }
+.mbadge.ok { border-color: var(--t1); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin: 0 6px 0 14px; border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+.dot:first-child { margin-left: 0; }
+.dot.cpcb { background: light-dark(#2e7d6b, #7ccdb4); } .dot.embassy { background: light-dark(#b8743f, #e0a87c); }
 
 /* ---------- controls ---------- */
 /* field counter */
@@ -326,6 +347,7 @@ tbody tr:hover { background: var(--hover); }
   .toast { left: 50%; }
   .foot { margin: 0 20px; }
   .js .sidebar { animation: none; }
+  .mapgrid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .banner { display: block; border-radius: 20px; }
@@ -335,6 +357,7 @@ tbody tr:hover { background: var(--hover); }
   main > section { margin-bottom: 56px; }
   .filters > label, .filters > button { flex: 1 1 100%; }
   .chart { height: 240px; }
+  .mapview { height: 340px; }
 }
 /* phones: blurring every panel is costly on cheaper GPUs, so only the header, floating bar and
    drawer keep the blur; panels get a slightly firmer surface instead, and one haze blob is dropped */
@@ -377,6 +400,8 @@ tbody tr:hover { background: var(--hover); }
   .haze, .top, .sidebar, .scrim, .nowbar, .toast, .foot, .lead, details.guide, details.mini, .counter, .filters, .row.actions,
   #obsForm, #surveyForm, #liveForm, #liveNote, .history, #live .muted, #observe thead th:last-child, #obsBody td:last-child { display: none !important; }
   #live:not(:has(#liveTop > *)) { display: none; }
+  #stationMap, #histForm, #official th:last-child, #oBody td:last-child { display: none !important; }
+  #official:not(:has(#oBody > *)), #history:has(#hChartBox[hidden]), #stations:not(:has(#oBody > *)):has(#hChartBox[hidden]) { display: none; }
   .shell { display: block; padding: 0; }
   main { max-width: none; padding: 0; }
   main::before { content: "VayuDrishti report, " attr(data-printed); display: block; margin-bottom: 14pt; font: 600 10pt var(--font); color: #555; }
