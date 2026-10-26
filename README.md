@@ -74,6 +74,14 @@ Each part is the location's average measured against a fixed reference (300 mg/m
 
 Charts use [Chart.js](https://www.chartjs.org/) from a CDN with an integrity hash; headings use Fraunces and Inter from Google Fonts (system fonts are the fallback).
 
+## Tests
+
+```bash
+npm test
+```
+
+Uses Node's built-in test runner, so there is still nothing to install. The server tests start `server.js` against a fake data provider; the app tests run `app.js` in a small fake browser (`test/helpers/dom.js`). A GitHub Action runs them on Node 20 and 22 for every push and pull request.
+
 ## Limits
 
 - Small, non-random samples: results show patterns, not proof.
