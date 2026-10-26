@@ -19,9 +19,9 @@ open index.html
 - Summary cards, location and date filters
 - Add / edit / delete observations (saved in browser localStorage)
 - Charts: traffic, dust deposition, traffic vs dust, location comparison
-- Hotspot ranking (score = 50% avg dust + 50% avg traffic, scaled 0–100)
-- Anonymous aggregate health survey (only totals stored)
-- Sample data (clearly labelled “Sample”) – load or delete anytime
+- Hotspot ranking (score 0–100 = 40% avg dust + 40% avg traffic + 20% avg heavy-vehicle share, each vs. a fixed reference; see `REF` in `app.js`)
+- Anonymous aggregate health survey (only totals stored, per browser – not shared across devices)
+- Sample data (clearly labelled “Sample”) – load or remove anytime without touching your own data
 - Methodology and limitations
 - Dark/light mode, CSV export, insights summary, mobile menu
 

@@ -7,7 +7,7 @@
   <meta name="description" content="VayuDrishti: See the air. Understand the impact.">
   <script>try{var t=localStorage.getItem("aps_theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -84,6 +84,7 @@
         <h2>Saved observations</h2>
         <div class="row">
           <button class="ghost" id="loadSample">Load sample data</button>
+          <button class="ghost" id="removeSample">Remove sample data</button>
           <button class="ghost" id="exportCsv">Export CSV</button>
           <button class="ghost danger" id="clearAll">Delete all</button>
         </div>
@@ -100,16 +101,16 @@
     <section id="charts">
       <h2>Charts</h2>
       <div class="grid2">
-        <div class="panel"><h3>Traffic over time</h3><div class="chart"><canvas id="cTraffic"></canvas></div></div>
-        <div class="panel"><h3>Dust deposition over time</h3><div class="chart"><canvas id="cDust"></canvas></div></div>
-        <div class="panel"><h3>Traffic vs dust (each dot = one observation)</h3><div class="chart"><canvas id="cScatter"></canvas></div></div>
-        <div class="panel"><h3>Location comparison (averages)</h3><div class="chart"><canvas id="cCompare"></canvas></div></div>
+        <div class="panel"><h3>Traffic over time</h3><div class="chart"><canvas id="cTraffic" role="img" aria-label="Line chart of average vehicles per hour by date"></canvas></div></div>
+        <div class="panel"><h3>Dust deposition over time</h3><div class="chart"><canvas id="cDust" role="img" aria-label="Bar chart of average dust deposition by date"></canvas></div></div>
+        <div class="panel"><h3>Traffic vs dust (each dot = one observation)</h3><div class="chart"><canvas id="cScatter" role="img" aria-label="Scatter plot of dust deposition against vehicles per hour"></canvas></div></div>
+        <div class="panel"><h3>Location comparison (averages)</h3><div class="chart"><canvas id="cCompare" role="img" aria-label="Bar chart comparing average traffic and dust by location"></canvas></div></div>
       </div>
     </section>
 
     <section id="hotspots" class="panel">
       <h2>Pollution hotspot ranking</h2>
-      <p class="muted">Score = 50% average dust + 50% average traffic, each scaled against the highest location (0–100). Based on the current filters.</p>
+      <p class="muted">Score (0–100) = 40% average dust + 40% average traffic + 20% average heavy-vehicle share, each measured against a fixed reference (300 mg/m²/day, 2000 vehicles/h, 30% heavy) and capped at 1. Based on the current filters.</p>
       <div class="tablewrap">
         <table><thead><tr><th>Rank</th><th>Location</th><th>Avg traffic</th><th>Avg dust</th><th>Score</th><th>Level</th></tr></thead>
         <tbody id="hotBody"></tbody></table>
@@ -119,7 +120,7 @@
     <section id="survey" class="grid2">
       <form id="surveyForm" class="panel">
         <h2>Anonymous health survey</h2>
-        <p class="muted">No names or personal details are stored – only running totals.</p>
+        <p class="muted">No names or personal details are stored – only running totals. Totals live in this browser only and are not shared with other devices, so to survey a group, collect everyone's answers on one device.</p>
         <fieldset>
           <legend>Symptoms you often notice near busy roads</legend>
           <label class="chk"><input type="checkbox" name="sym" value="Cough"> Cough</label>
@@ -137,7 +138,7 @@
       <div class="panel">
         <h3>Survey results <span id="surveyTag" class="pill" hidden>includes sample</span></h3>
         <p id="surveyText" class="muted"></p>
-        <div class="chart"><canvas id="cSurvey"></canvas></div>
+        <div class="chart"><canvas id="cSurvey" role="img" aria-label="Bar chart of symptoms reported in the health survey, as percent of respondents"></canvas></div>
       </div>
     </section>
 
@@ -159,7 +160,8 @@
           <li>Dust deposition is not the same as PM2.5/PM10 concentration.</li>
           <li>Weather, wind, rain and nearby construction affect dust.</li>
           <li>Survey answers are self-reported and may be biased.</li>
-          <li>The hotspot score is a simple teaching index, not an official air quality index.</li>
+          <li>The hotspot score is a simple teaching index with arbitrary reference values, not an official air quality index.</li>
+          <li>The traffic–dust correlation pools all locations, so differences between places can drive it.</li>
           <li>Data is stored only in this browser (localStorage).</li>
         </ul>
       </div>
