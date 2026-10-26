@@ -394,19 +394,19 @@ const live = load(LIVE_KEY, {});
 const AQI_LEVELS = [[50, "Good"], [100, "Moderate"], [150, "Unhealthy for sensitive groups"], [200, "Unhealthy"], [300, "Very unhealthy"], [Infinity, "Hazardous"]];
 const POLLUTANTS = { p2: "PM2.5", p1: "PM10", o3: "Ozone", n2: "NO₂", s2: "SO₂", co: "CO" };
 
-// error messages never include the URL, because it carries the API key
+// The API keys live in .env and are added by server.js; the browser never sees them.
 async function getJson(url) {
   let res;
   try { res = await fetch(url, { signal: AbortSignal.timeout(10000) }); }
-  catch (e) { throw new Error("network error or timeout"); }
+  catch (e) { throw new Error("could not reach the server (run `node server.js` and open http://localhost:8000)"); }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.data?.message || body.detailedError?.message || "HTTP " + res.status);
+  if (!res.ok) throw new Error(body.error || body.data?.message || body.detailedError?.message || "HTTP " + res.status);
   return body;
 }
 
 // each source returns [label, value] pairs for the cards
-async function fetchAqi(lat, lon, key) {
-  const j = await getJson(`https://api.airvisual.com/v2/nearest_city?lat=${lat}&lon=${lon}&key=${encodeURIComponent(key)}`);
+async function fetchAqi(lat, lon) {
+  const j = await getJson(`/api/aqi?lat=${lat}&lon=${lon}`);
   if (j.status !== "success") throw new Error(j.data?.message || "unexpected response");
   const { city, state, current: { pollution: p, weather: w } } = j.data;
   return [
@@ -417,8 +417,8 @@ async function fetchAqi(lat, lon, key) {
     ["AQI updated", new Date(p.ts).toLocaleString()],
   ];
 }
-async function fetchTraffic(lat, lon, key) {
-  const j = await getJson(`https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point=${lat},${lon}&key=${encodeURIComponent(key)}`);
+async function fetchTraffic(lat, lon) {
+  const j = await getJson(`/api/traffic?lat=${lat}&lon=${lon}`);
   const f = j.flowSegmentData; // speeds are km/h by default
   const jam = f.freeFlowSpeed ? Math.max(0, Math.round((1 - f.currentSpeed / f.freeFlowSpeed) * 100)) + "%" : "–";
   return [
@@ -428,11 +428,11 @@ async function fetchTraffic(lat, lon, key) {
   ];
 }
 const LIVE_SOURCES = [
-  { name: "IQAir", keyId: "iqKey", run: fetchAqi },
-  { name: "TomTom", keyId: "ttKey", run: fetchTraffic },
+  { name: "IQAir", run: fetchAqi },
+  { name: "TomTom", run: fetchTraffic },
 ];
 
-["lat", "lon", ...LIVE_SOURCES.map((s) => s.keyId)].forEach((id) => ($(id).value = live[id] || ""));
+["lat", "lon"].forEach((id) => ($(id).value = live[id] || ""));
 
 $("useLoc").addEventListener("click", () => {
   if (!navigator.geolocation) { toast("Geolocation is not available in this browser.", true); return; }
@@ -444,15 +444,13 @@ $("useLoc").addEventListener("click", () => {
 $("liveForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const lat = Number($("lat").value), lon = Number($("lon").value);
-  const sources = LIVE_SOURCES.filter((s) => $(s.keyId).value.trim());
-  if (!sources.length) { toast("Enter at least one API key.", true); return; }
-  save(LIVE_KEY, Object.fromEntries(["lat", "lon", ...LIVE_SOURCES.map((s) => s.keyId)].map((id) => [id, $(id).value.trim()])));
+  save(LIVE_KEY, { lat: $("lat").value, lon: $("lon").value });
   $("liveBtn").disabled = true;
-  const results = await Promise.allSettled(sources.map((s) => s.run(lat, lon, $(s.keyId).value.trim())));
+  const results = await Promise.allSettled(LIVE_SOURCES.map((s) => s.run(lat, lon)));
   $("liveBtn").disabled = false;
   const cards = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   $("liveCards").innerHTML = cards.map((c) => `<div class="card"><small>${esc(c[0])}</small><b>${esc(c[1])}</b></div>`).join("");
-  $("liveNote").textContent = results.map((r, i) => (r.status === "rejected" ? `${sources[i].name} failed: ${r.reason.message}. ` : "")).join("");
+  $("liveNote").textContent = results.map((r, i) => (r.status === "rejected" ? `${LIVE_SOURCES[i].name} failed: ${r.reason.message}.` : "")).join("");
 });
 
 // ---------- start ----------

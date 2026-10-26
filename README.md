@@ -4,15 +4,29 @@
 
 Urban Air Quality & Traffic Impact Assessment
 
-Web dashboard built with plain HTML, CSS, JavaScript and Chart.js (CDN). No backend, no build step.
+Web dashboard built with plain HTML, CSS, JavaScript and Chart.js (CDN). No build step, no dependencies.
 
 ## Run
 
 ```
-open index.html
+cp .env.example .env     # then put your keys in .env
+node server.js           # http://localhost:8000
 ```
 
-(or `python3 -m http.server 8000` and visit http://localhost:8000). Internet is needed once to load Chart.js from the CDN.
+Needs Node 20.12+. Internet is needed to load Chart.js from the CDN.
+
+Everything except the **Live** section also works by just opening `index.html`.
+
+## Live AQI and traffic
+
+The **Live** section shows the US AQI from [IQAir](https://www.iqair.com/air-pollution-data-api) and current speed/congestion from [TomTom](https://developer.tomtom.com/) for a lat/lon. The keys go in `.env` (git-ignored):
+
+```
+IQAIR_API_KEY=...
+TOMTOM_API_KEY=...
+```
+
+`server.js` adds the keys to the API calls itself, so they never reach the browser. It serves only the three site files, listens on 127.0.0.1, and is meant for local use. If you deploy this publicly, put it behind your own auth and rate limiting first.
 
 ## Features
 
