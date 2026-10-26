@@ -425,6 +425,80 @@ $("exportCsv").addEventListener("click", () => {
   URL.revokeObjectURL(a.href);
   toast("CSV exported.");
 });
+// ---------- CSV import ----------
+// minimal RFC 4180 parser: quoted fields, "" escapes, CRLF or LF, optional BOM
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  text = text.replace(/^﻿/, "");
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false; }
+      else field += c;
+    } else if (c === '"' && field === "") quoted = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(field); rows.push(row); row = []; field = "";
+    } else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((x) => x.trim() !== ""));
+}
+const CSV_COLUMNS = { date: "date", location: "location", slot: "time slot", traffic: "vehicles per hour", heavy: "heavy vehicles %", dust: "dust mg/m2/day", notes: "notes", sample: "sample data" };
+const IMPORT_LIMITS = { bytes: 1000000, rows: 5000 };
+// turn parsed rows into valid observations; everything else is counted, never trusted
+function importRows(rows, existing) {
+  const head = (rows[0] || []).map((h) => h.trim().toLowerCase());
+  const col = {};
+  Object.entries(CSV_COLUMNS).forEach(([k, name]) => (col[k] = head.indexOf(name)));
+  const missing = ["date", "location", "slot", "traffic", "heavy", "dust"].filter((k) => col[k] < 0).map((k) => CSV_COLUMNS[k]);
+  const out = { records: [], dup: 0, bad: 0, sample: 0, missing };
+  if (missing.length) return out;
+  const key = (o) => [o.date, o.location.toLowerCase(), o.slot, o.traffic, o.heavy, o.dust].join("|");
+  const seen = new Set(existing.filter((o) => !o.sample).map(key));
+  const slots = ["Morning", "Afternoon", "Evening"];
+  rows.slice(1).forEach((r, i) => {
+    // undo the formula guard that the export adds in front of =, +, - and @
+    const get = (k) => (col[k] >= 0 ? (r[col[k]] ?? "").trim().replace(/^'(?=[=+\-@\t\r])/, "") : "");
+    if (get("sample").toLowerCase() === "yes") { out.sample++; return; }
+    const num = (k) => (get(k) === "" ? NaN : Number(get(k)));
+    const rec = {
+      id: "i" + Date.now() + "_" + i, sample: false, location: get("location"), date: get("date"),
+      slot: slots.find((s) => s.toLowerCase() === get("slot").toLowerCase()),
+      traffic: num("traffic"), heavy: num("heavy"), dust: num("dust"), notes: get("notes").slice(0, 200),
+    };
+    const day = new Date(rec.date + "T00:00:00Z"); // 2025-02-30 must fail, not roll over to March
+    const realDate = /^\d{4}-\d{2}-\d{2}$/.test(rec.date) && !isNaN(day) && day.toISOString().slice(0, 10) === rec.date;
+    const ok = realDate && rec.slot && rec.location && rec.location.length <= 40 &&
+      [rec.traffic, rec.heavy, rec.dust].every((n) => Number.isFinite(n) && n >= 0) && rec.heavy <= 100;
+    if (!ok) { out.bad++; return; }
+    if (seen.has(key(rec))) { out.dup++; return; }
+    seen.add(key(rec));
+    out.records.push(rec);
+  });
+  return out;
+}
+$("importCsv").addEventListener("click", () => $("importFile").click());
+$("importFile").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ""; // so picking the same file again still fires
+  if (!file) return;
+  if (file.size > IMPORT_LIMITS.bytes) { toast("That file is over 1 MB. Split it and import it in parts.", true); return; }
+  let rows;
+  try { rows = parseCsv(await file.text()); } catch (err) { toast("Could not read that file.", true); return; }
+  if (rows.length > IMPORT_LIMITS.rows + 1) { toast(`Too many rows (the limit is ${IMPORT_LIMITS.rows}).`, true); return; }
+  const r = importRows(rows, observations);
+  if (r.missing.length) { toast(`Missing columns: ${r.missing.join(", ")}. Import a file exported from here.`, true); return; }
+  const skipped = [r.dup && `${r.dup} duplicate`, r.bad && `${r.bad} invalid`, r.sample && `${r.sample} sample`].filter(Boolean).join(", ");
+  if (!r.records.length) { toast("Nothing imported" + (skipped ? ` (${skipped})` : "") + ".", true); return; }
+  const before = observations;
+  observations = observations.concat(r.records);
+  if (!save(OBS_KEY, observations)) { observations = before; return; }
+  toast(`Imported ${r.records.length} observation(s)` + (skipped ? `; skipped ${skipped}` : "") + ".");
+  renderAll();
+});
 $("clearAll").addEventListener("click", () => {
   if (!confirm("Delete ALL observations?")) return;
   observations = [];
