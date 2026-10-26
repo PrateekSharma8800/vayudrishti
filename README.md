@@ -38,7 +38,7 @@ cp .env.example .env      # then add your keys (see below)
 node server.js            # or: npm start
 ```
 
-Open <http://localhost:8000>. Everything except the **Live** section also works by simply opening `index.html` in a browser.
+Open <http://localhost:8000>. Everything except the **Live** section also works by simply opening `public/index.html` in a browser.
 
 ## Live data and API keys
 
@@ -49,7 +49,7 @@ IQAIR_API_KEY=...
 TOMTOM_API_KEY=...
 ```
 
-Put them in `.env`, which is git-ignored (when deployed, set them as environment variables instead). `server.js` adds the keys to the API calls itself, so they are never sent to the browser or committed. It serves only `index.html`, `app.js` and `style.css`, and listens on `127.0.0.1`.
+Put them in `.env`, which is git-ignored (when deployed, set them as environment variables instead). `server.js` adds the keys to the API calls itself, so they are never sent to the browser or committed. It serves only the three files in `public/`, and listens on `127.0.0.1`.
 
 - It is meant for **local use**. If you deploy it publicly, put it behind your own authentication and rate limiting first.
 - Free IQAir keys are rate limited, so the page fetches only when you press **Fetch**. You can opt in to **Refresh every 15 minutes**; it pauses while the tab is hidden.
@@ -61,15 +61,15 @@ Put them in `.env`, which is git-ignored (when deployed, set them as environment
 score = 40% dust + 40% traffic + 20% heavy-vehicle share
 ```
 
-Each part is the location's average measured against a fixed reference (300 mg/m²/day, 2000 vehicles/h, 30% heavy) and capped at 1, so a score does not change just because another location was added. Below 40 is Low, 40 to 69 Moderate, 70 and above High. The references are teaching values you can change (`REF` in `app.js`); this is not an official air quality index.
+Each part is the location's average measured against a fixed reference (300 mg/m²/day, 2000 vehicles/h, 30% heavy) and capped at 1, so a score does not change just because another location was added. Below 40 is Low, 40 to 69 Moderate, 70 and above High. The references are teaching values you can change (`REF` in `public/app.js`); this is not an official air quality index.
 
 ## Project structure
 
 | File | What it is |
 |---|---|
-| `index.html` | The page (markup and icons) |
-| `style.css` | Design tokens, glass surfaces, motion |
-| `app.js` | State, rendering, charts, live data |
+| `public/index.html` | The page (markup and icons) |
+| `public/style.css` | Design tokens, glass surfaces, motion |
+| `public/app.js` | State, rendering, charts, live data |
 | `server.js` | Local server and API proxy (reads `.env`) |
 | `DESIGN.md` | The design philosophy |
 | `.env.example` | The keys and optional settings |

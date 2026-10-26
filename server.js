@@ -24,7 +24,7 @@ const API = {
 
 // A content security policy for the page. The one inline script (theme + js flag in <head>)
 // is allowed by its hash, computed from the file we actually serve.
-const pageHtml = () => fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+const pageHtml = () => fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
 const inlineHashes = [...pageHtml().matchAll(/<script>([\s\S]*?)<\/script>/g)]
   .map((m) => `'sha256-${crypto.createHash("sha256").update(m[1].replace(/\r\n?/g, "\n")).digest("base64")}'`);
 const CSP = [
@@ -91,7 +91,7 @@ const server = http.createServer(async (req, res) => {
     }
     const file = FILES[pathname];
     if (!file) return fail(res, 404, "not found");
-    send(res, 200, TYPES[path.extname(file)], fs.readFileSync(path.join(__dirname, file)), { "Cache-Control": "no-cache" });
+    send(res, 200, TYPES[path.extname(file)], fs.readFileSync(path.join(__dirname, "public", file)), { "Cache-Control": "no-cache" });
   } catch (e) {
     fail(res, 500, "server error"); // never let one bad request take the server down
   }

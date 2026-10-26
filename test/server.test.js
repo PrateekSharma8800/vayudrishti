@@ -197,7 +197,7 @@ test("the page carries a content security policy that allows exactly its inline 
   assert.match(csp, /default-src 'self'/);
   assert.match(csp, /frame-ancestors 'self'/);
   assert.match(csp, /object-src 'none'/);
-  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => crypto.createHash("sha256").update(m[1].replace(/\r\n?/g, "\n")).digest("base64"));
   assert.ok(inline.length >= 1);
   for (const h of inline) assert.ok(csp.includes(`'sha256-${h}'`), "the inline script's hash is listed");
