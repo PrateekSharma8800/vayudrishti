@@ -1,0 +1,12 @@
+{
+  "name": "vayudrishti",
+  "version": "1.0.0",
+  "private": true,
+  "description": "See the air. Understand the impact. Urban air quality and traffic impact dashboard with live AQI and traffic.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  }
+}
