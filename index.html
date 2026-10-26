@@ -7,7 +7,7 @@
   <meta name="description" content="VayuDrishti: See the air. Understand the impact.">
   <script>try{var t=localStorage.getItem("aps_theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -101,10 +101,10 @@
     <section id="charts">
       <h2>Charts</h2>
       <div class="grid2">
-        <div class="panel"><h3>Traffic over time</h3><div class="chart"><canvas id="cTraffic"></canvas></div></div>
-        <div class="panel"><h3>Dust deposition over time</h3><div class="chart"><canvas id="cDust"></canvas></div></div>
-        <div class="panel"><h3>Traffic vs dust (each dot = one observation)</h3><div class="chart"><canvas id="cScatter"></canvas></div></div>
-        <div class="panel"><h3>Location comparison (averages)</h3><div class="chart"><canvas id="cCompare"></canvas></div></div>
+        <div class="panel"><h3>Traffic over time</h3><div class="chart"><canvas id="cTraffic" role="img" aria-label="Line chart of average vehicles per hour by date"></canvas></div></div>
+        <div class="panel"><h3>Dust deposition over time</h3><div class="chart"><canvas id="cDust" role="img" aria-label="Bar chart of average dust deposition by date"></canvas></div></div>
+        <div class="panel"><h3>Traffic vs dust (each dot = one observation)</h3><div class="chart"><canvas id="cScatter" role="img" aria-label="Scatter plot of dust deposition against vehicles per hour"></canvas></div></div>
+        <div class="panel"><h3>Location comparison (averages)</h3><div class="chart"><canvas id="cCompare" role="img" aria-label="Bar chart comparing average traffic and dust by location"></canvas></div></div>
       </div>
     </section>
 
@@ -138,7 +138,7 @@
       <div class="panel">
         <h3>Survey results <span id="surveyTag" class="pill" hidden>includes sample</span></h3>
         <p id="surveyText" class="muted"></p>
-        <div class="chart"><canvas id="cSurvey"></canvas></div>
+        <div class="chart"><canvas id="cSurvey" role="img" aria-label="Bar chart of symptoms reported in the health survey, as percent of respondents"></canvas></div>
       </div>
     </section>
 
