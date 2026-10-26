@@ -23,6 +23,10 @@ function toast(msg, isError) {
 }
 let observations = load(OBS_KEY, []);
 let survey = load(SURVEY_KEY, newSurvey());
+// stored data may be corrupt or from an older version
+if (!Array.isArray(observations)) observations = [];
+if (!survey.counts || typeof survey.n !== "number") survey = newSurvey();
+SYMPTOMS.forEach((s) => (survey.counts[s] = survey.counts[s] || 0));
 const charts = {};
 
 function newSurvey() {
@@ -33,6 +37,8 @@ function newSurvey() {
 function esc(t) {
   return String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// local YYYY-MM-DD (toISOString would give the UTC date, a day off in IST)
+const ymd = (d) => d.toLocaleDateString("en-CA");
 const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
 const fmt = (n) => (Math.round(n * 10) / 10).toString();
 
@@ -90,7 +96,7 @@ function sampleObservations() {
       const wobble = 0.85 + ((i * 7 + d * 5) % 10) / 33; // deterministic variation
       list.push({
         id: "s" + i + "_" + d, sample: true, location: p[0],
-        date: date.toISOString().slice(0, 10), slot: slots[d % 3],
+        date: ymd(date), slot: slots[d % 3],
         traffic: Math.round(p[1] * wobble), heavy: Math.round(p[2] * wobble),
         dust: Math.round(p[3] * wobble * 10) / 10, notes: "Sample data",
       });
@@ -113,18 +119,20 @@ function refreshLocations() {
 }
 
 // ---------- hotspot calculation ----------
+// Fixed reference values (a "full marks" level), so a score does not depend on which
+// other locations are loaded or filtered. Teaching values, not official limits.
+const REF = { dust: 300, traffic: 2000, heavy: 30 };
 function locationStats(data) {
   const groups = {};
   data.forEach((o) => (groups[o.location] = groups[o.location] || []).push(o));
   const stats = Object.keys(groups).map((name) => ({
     name, n: groups[name].length,
     traffic: avg(groups[name].map((o) => o.traffic)),
+    heavy: avg(groups[name].map((o) => o.heavy)),
     dust: avg(groups[name].map((o) => o.dust)),
   }));
-  const maxT = Math.max(1, ...stats.map((s) => s.traffic));
-  const maxD = Math.max(1, ...stats.map((s) => s.dust));
   stats.forEach((s) => {
-    s.score = Math.round(50 * (s.dust / maxD) + 50 * (s.traffic / maxT));
+    s.score = Math.round(40 * Math.min(s.dust / REF.dust, 1) + 40 * Math.min(s.traffic / REF.traffic, 1) + 20 * Math.min(s.heavy / REF.heavy, 1));
     s.level = s.score >= 70 ? "High" : s.score >= 40 ? "Moderate" : "Low";
   });
   return stats.sort((a, b) => b.score - a.score);
@@ -137,7 +145,7 @@ function renderAll() {
   const stats = locationStats(data);
   renderInsights(data, stats);
   renderCards(data, stats);
-  renderTable();
+  renderTable(data);
   renderHotspots(stats);
   renderCharts(data, stats);
   renderSurvey();
@@ -145,8 +153,8 @@ function renderAll() {
 }
 
 function renderInsights(data, stats) {
-  const real = observations.filter((o) => !o.sample).length;
-  const hasSample = observations.some((o) => o.sample);
+  const real = data.filter((o) => !o.sample).length;
+  const hasSample = data.some((o) => o.sample);
   let html = "<h3>Welcome</h3>";
   if (!observations.length) {
     html += '<p class="muted">No observations yet. Add your first field measurement below, or explore the dashboard with clearly labelled demo values.</p>' +
@@ -157,11 +165,12 @@ function renderInsights(data, stats) {
     const top = stats[0], low = stats[stats.length - 1];
     const dates = data.map((o) => o.date).sort();
     const heavy = Math.round(avg(data.map((o) => o.heavy)));
-    html += `<p class="muted">${real} of your own and ${observations.length - real} sample observation(s) in total${hasSample ? " – sample values are demo data, not real measurements" : ""}.</p><ul>` +
+    const r = corr(data);
+    html += `<p class="muted">${real} of your own and ${data.length - real} sample observation(s) shown${hasSample ? " – sample values are demo data, not real measurements" : ""}.</p><ul>` +
       `<li>Highest pollution score: <strong>${esc(top.name)}</strong> (${top.score}/100, ${top.level}).</li>` +
       (stats.length > 1 ? `<li>Lowest: <strong>${esc(low.name)}</strong> (${low.score}/100).</li>` : "") +
       `<li>Data covers ${esc(dates[0])} to ${esc(dates[dates.length - 1])}; heavy vehicles average ${heavy}%.</li>` +
-      (data.length > 2 ? `<li>Traffic and dust ${corr(data) > 0.5 ? "rise together" : corr(data) < -0.5 ? "move in opposite directions" : "show only a weak link"} in this data (correlation ${corr(data).toFixed(2)}). Correlation is not proof of cause.</li>` : "") +
+      (data.length > 2 ? `<li>Traffic and dust ${r > 0.5 ? "rise together" : r < -0.5 ? "move in opposite directions" : "show only a weak link"} in this data (correlation ${r.toFixed(2)}). Correlation is not proof of cause.</li>` : "") +
       "</ul>";
   }
   $("insights").innerHTML = html;
@@ -185,15 +194,15 @@ function renderCards(data, stats) {
   $("cards").innerHTML = cards.map((c) => `<div class="card"><small>${c[0]}</small><b>${c[1]}</b></div>`).join("");
 }
 
-function renderTable() {
-  const rows = [...observations].sort((a, b) => b.date.localeCompare(a.date));
+function renderTable(data) {
+  const rows = [...data].sort((a, b) => b.date.localeCompare(a.date));
   $("obsBody").innerHTML = rows.length
     ? rows.map((o) => `<tr>
         <td>${esc(o.date)}</td><td>${esc(o.location)}${o.sample ? ' <span class="pill sample">Sample</span>' : ""}</td>
         <td>${esc(o.slot)}</td><td>${o.traffic}</td><td>${o.heavy}</td><td>${o.dust}</td>
         <td><button class="small ghost" data-edit="${o.id}">Edit</button><button class="small ghost danger" data-del="${o.id}">Delete</button></td>
       </tr>`).join("")
-    : '<tr><td colspan="7" class="muted empty">No observations yet. Fill in the form to add your first one, or use “Load sample data” above to explore with demo values.</td></tr>';
+    : `<tr><td colspan="7" class="muted empty">${observations.length ? "No observations match the current filters." : "No observations yet. Fill in the form to add your first one, or use “Load sample data” above to explore with demo values."}</td></tr>`;
 }
 
 function renderHotspots(stats) {
@@ -228,7 +237,7 @@ function renderCharts(data, stats) {
     options: { scales: { x: { title: { display: true, text: "Vehicles per hour" } }, y: { title: { display: true, text: "Dust (mg/m²/day)" } } } } });
   draw("cCompare", { type: "bar", data: { labels: stats.map((s) => s.name), datasets: [
     { label: "Avg traffic (veh/h)", data: stats.map((s) => Math.round(s.traffic)), backgroundColor: C1, yAxisID: "y" },
-    { label: "Avg dust (mg/m²/day)", data: stats.map((s) => fmt(s.dust)), backgroundColor: C2, yAxisID: "y1" }] },
+    { label: "Avg dust (mg/m²/day)", data: stats.map((s) => +fmt(s.dust)), backgroundColor: C2, yAxisID: "y1" }] },
     options: { scales: { y: { position: "left" }, y1: { position: "right", grid: { drawOnChartArea: false } } } } });
 }
 
@@ -247,7 +256,7 @@ function renderSurvey() {
 function resetForm() {
   $("obsForm").reset();
   $("obsId").value = "";
-  $("date").value = new Date().toISOString().slice(0, 10);
+  $("date").value = ymd(new Date());
   $("formTitle").textContent = "Add observation";
   $("saveBtn").textContent = "Save observation";
   $("cancelBtn").hidden = true;
@@ -305,13 +314,26 @@ $("obsBody").addEventListener("click", (e) => {
 // ---------- sample data / clear ----------
 function loadSample() {
   observations = observations.filter((o) => !o.sample).concat(sampleObservations());
-  survey = { n: 40, counts: { "Cough": 18, "Eye irritation": 22, "Breathlessness": 9, "Headache": 14, "Throat irritation": 16 }, near: 24, sample: true };
+  // never overwrite real survey responses
+  if (!survey.n || survey.sample) {
+    survey = { n: 40, counts: { "Cough": 18, "Eye irritation": 22, "Breathlessness": 9, "Headache": 14, "Throat irritation": 16 }, near: 24, sample: true };
+    save(SURVEY_KEY, survey);
+  }
   save(OBS_KEY, observations);
-  save(SURVEY_KEY, survey);
   toast("Sample data loaded. It is made-up demo data, not real measurements.");
   renderAll();
 }
 $("loadSample").addEventListener("click", loadSample);
+$("removeSample").addEventListener("click", () => {
+  if (!observations.some((o) => o.sample) && !survey.sample) { toast("No sample data to remove.", true); return; }
+  if (survey.sample && survey.n > 40 && !confirm("Survey totals include sample data plus your responses. Removing sample data resets the survey. Continue?")) return;
+  observations = observations.filter((o) => !o.sample);
+  if (survey.sample) survey = newSurvey();
+  save(OBS_KEY, observations);
+  save(SURVEY_KEY, survey);
+  toast("Sample data removed. Your own data is untouched.");
+  renderAll();
+});
 $("insights").addEventListener("click", (e) => { if (e.target.id === "emptySample") loadSample(); });
 
 // ---------- CSV export ----------
@@ -319,7 +341,7 @@ $("exportCsv").addEventListener("click", () => {
   if (!observations.length) { toast("Nothing to export yet.", true); return; }
   const cell = (v) => {
     let t = String(v ?? "");
-    if (/^[=+\-@]/.test(t)) t = "'" + t; // stop spreadsheet formula injection
+    if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; // stop spreadsheet formula injection
     return '"' + t.replace(/"/g, '""') + '"';
   };
   const head = ["Date", "Location", "Time slot", "Vehicles per hour", "Heavy vehicles %", "Dust mg/m2/day", "Notes", "Sample data"];
@@ -327,7 +349,7 @@ $("exportCsv").addEventListener("click", () => {
   const blob = new Blob(["\ufeff" + [head.map(cell).join(",")].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "air-pollution-observations.csv";
+  a.download = "vayudrishti-observations.csv";
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
   toast("CSV exported.");
@@ -370,3 +392,4 @@ $("resetSurvey").addEventListener("click", () => {
 applyTheme(document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 resetForm();
 renderAll();
+if (typeof Chart === "undefined") toast("Charts could not load (Chart.js needs internet once). Tables still work.", true);
