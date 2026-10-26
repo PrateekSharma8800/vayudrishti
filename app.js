@@ -395,6 +395,7 @@ function loadSample() {
   renderAll();
 }
 $("loadSample").addEventListener("click", loadSample);
+$("guideSample").addEventListener("click", loadSample);
 $("removeSample").addEventListener("click", () => {
   if (!observations.some((o) => o.sample) && !survey.sample) { toast("No sample data to remove.", true); return; }
   if (survey.sample && survey.n > 40 && !confirm("Survey totals include sample data plus your responses. Removing sample data resets the survey. Continue?")) return;
