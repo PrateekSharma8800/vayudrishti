@@ -2,6 +2,8 @@
 
 *See the air. Understand the impact.*
 
+[![Tests](https://github.com/PrateekSharma8800/vayudrishti/actions/workflows/test.yml/badge.svg)](https://github.com/PrateekSharma8800/vayudrishti/actions/workflows/test.yml)
+
 **VayuDrishti** (वायुदृष्टि: *vayu* = air, *drishti* = sight) is a small dashboard for urban air quality and traffic impact studies. Log field observations (traffic counts and dust deposition), rank hotspots, run an anonymous health survey, and pull **live AQI** and **live traffic** for any point on the map.
 
 No frameworks, no build step, no dependencies. Plain HTML, CSS and JavaScript, plus a tiny Node server that keeps your API keys off the browser.
