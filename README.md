@@ -2,6 +2,8 @@
 
 *See the air. Understand the impact.*
 
+[![Tests](https://github.com/PrateekSharma8800/vayudrishti/actions/workflows/test.yml/badge.svg)](https://github.com/PrateekSharma8800/vayudrishti/actions/workflows/test.yml)
+
 **VayuDrishti** (वायुदृष्टि: *vayu* = air, *drishti* = sight) is a small dashboard for urban air quality and traffic impact studies. Log field observations (traffic counts and dust deposition), rank hotspots, run an anonymous health survey, and pull **live AQI** and **live traffic** for any point on the map.
 
 No frameworks, no build step, no dependencies. Plain HTML, CSS and JavaScript, plus a tiny Node server that keeps your API keys off the browser.
@@ -19,7 +21,7 @@ No frameworks, no build step, no dependencies. Plain HTML, CSS and JavaScript, p
 ## Features
 
 - **Dashboard:** summary, filters (location, dates), and key numbers that count up when they change.
-- **Observations:** add, edit and delete field records; data lives in your browser (`localStorage`); CSV export.
+- **Observations:** add, edit and delete field records; data lives in your browser (`localStorage`). Export to CSV and import it back on another device: rows are validated, duplicates and demo rows are skipped, and nothing existing is overwritten.
 - **Charts:** traffic and dust over time, traffic vs dust, and a location comparison.
 - **Hotspots:** every location scored 0 to 100 (see below) and ranked.
 - **Live conditions:** US AQI from [IQAir](https://www.iqair.com/air-pollution-data-api) and current speed and congestion from [TomTom](https://developer.tomtom.com/). After a fetch the page's atmosphere takes the colour of the air.
@@ -50,7 +52,7 @@ TOMTOM_API_KEY=...
 Put them in `.env`, which is git-ignored. `server.js` adds the keys to the API calls itself, so they are never sent to the browser or committed. It serves only `index.html`, `app.js` and `style.css`, and listens on `127.0.0.1`.
 
 - It is meant for **local use**. If you deploy it publicly, put it behind your own authentication and rate limiting first.
-- Free IQAir keys are rate limited, so the page fetches only when you press **Fetch**.
+- Free IQAir keys are rate limited, so the page fetches only when you press **Fetch**. You can opt in to **Refresh every 15 minutes**; it pauses while the tab is hidden.
 - TomTom reports speed and congestion on the nearest road, **not vehicle counts**, so it complements the vehicles per hour you count in the field instead of replacing it.
 
 ## How the hotspot score works
@@ -73,6 +75,14 @@ Each part is the location's average measured against a fixed reference (300 mg/m
 | `.env.example` | Names of the keys you need |
 
 Charts use [Chart.js](https://www.chartjs.org/) from a CDN with an integrity hash; headings use Fraunces and Inter from Google Fonts (system fonts are the fallback).
+
+## Tests
+
+```bash
+npm test
+```
+
+Uses Node's built-in test runner, so there is still nothing to install. The server tests start `server.js` against a fake data provider; the app tests run `app.js` in a small fake browser (`test/helpers/dom.js`). A GitHub Action runs them on Node 20 and 22 for every push and pull request.
 
 ## Limits
 
