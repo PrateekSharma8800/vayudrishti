@@ -168,6 +168,17 @@ main > section { margin-bottom: 72px; }
 .live-top + .cards { margin-top: 20px; }
 
 /* ---------- controls ---------- */
+.lead { max-width: 72ch; margin: -8px 0 20px; font-size: 15px; line-height: 1.65; }
+.lead button { vertical-align: baseline; min-height: 30px; padding: 0 14px; }
+.hint { display: block; margin: 2px 0 0; font-weight: 400; font-size: 11px; line-height: 1.4; color: var(--ink-2); }
+.guide { margin-bottom: 24px; padding: 4px 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
+.guide summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; font-weight: 500; cursor: pointer; list-style: none; }
+.guide summary::-webkit-details-marker { display: none; }
+.guide summary::after { content: "+"; font-size: 20px; line-height: 1; color: var(--ink-2); transition: transform .35s var(--spring); }
+.guide[open] summary::after { transform: rotate(45deg); }
+.guide ol { margin: 0 0 12px; padding-left: 20px; max-width: 72ch; line-height: 1.65; }
+.guide li { margin-bottom: 10px; }
+.guide .muted { padding-bottom: 14px; }
 .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 36px; }
 .filters label { margin: 0; }
 label { display: block; font: 500 12px/1.3 var(--font); color: var(--ink-2); margin-bottom: 16px; }

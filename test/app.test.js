@@ -230,3 +230,9 @@ test("the last chosen place is remembered, and old lat/lon settings still work",
   assert.equal(old.els.coordRow.hidden, false);
   assert.equal(old.els.lat.value, "28.6");
 });
+
+test("the observations intro can load the sample data", async () => {
+  const app = loadApp();
+  await app.els.guideSample.click();
+  assert.equal(saved(app, "aps_observations").length, 30);
+});
