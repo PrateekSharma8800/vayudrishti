@@ -28,6 +28,7 @@ if (!Array.isArray(observations)) observations = [];
 if (!survey.counts || typeof survey.n !== "number") survey = newSurvey();
 SYMPTOMS.forEach((s) => (survey.counts[s] = survey.counts[s] || 0));
 const charts = {};
+let printing = false; // while true, charts draw without animation so the page prints complete
 
 function newSurvey() {
   const counts = {};
@@ -101,6 +102,25 @@ $("themeBtn").addEventListener("click", () => {
   document.documentElement.classList.add("theming");
   setTimeout(() => document.documentElement.classList.remove("theming"), 650);
   applyTheme(next);
+  renderAll();
+});
+
+// ---------- print or save as PDF ----------
+// A report goes on white paper, so a dark theme is swapped for the light one while printing
+// (charts are redrawn in dark ink) and put back afterwards. Nothing is saved.
+let themeBeforePrint;
+$("printBtn").addEventListener("click", () => window.print());
+addEventListener("beforeprint", () => {
+  printing = true;
+  $("main").dataset.printed = ymd(new Date());
+  themeBeforePrint = document.documentElement.dataset.theme;
+  if (themeBeforePrint === "dark") applyTheme("light");
+  renderAll();
+});
+addEventListener("afterprint", () => {
+  printing = false;
+  if (themeBeforePrint === "dark") applyTheme("dark");
+  themeBeforePrint = undefined;
   renderAll();
 });
 
@@ -296,7 +316,7 @@ function renderHotspots(stats) {
 // draw (or redraw) a chart
 function draw(id, config) {
   if (charts[id]) charts[id].destroy();
-  config.options = Object.assign({ responsive: true, maintainAspectRatio: false }, config.options);
+  config.options = Object.assign({ responsive: true, maintainAspectRatio: false }, printing ? { animation: false } : {}, config.options);
   charts[id] = new Chart($(id), config);
 }
 
