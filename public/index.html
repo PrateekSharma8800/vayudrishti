@@ -204,10 +204,11 @@
                 <input type="file" id="importFile" accept=".csv,text/csv" hidden aria-label="Choose a CSV file to import">
                 <button type="button" class="ghost danger" id="clearAll">Delete all</button>
               </div>
+              <input type="search" id="obsSearch" placeholder="Search by place, date or notes" aria-label="Search saved observations" autocomplete="off">
               <div class="tablewrap">
                 <table>
                   <caption class="sr">Saved observations</caption>
-                  <thead><tr><th>Date</th><th>Location</th><th>Slot</th><th class="num">Vehicles/h</th><th class="num">Heavy %</th><th class="num">Dust</th><th><span class="sr">Actions</span></th></tr></thead>
+                  <thead id="obsHead"><tr><th aria-sort="descending"><button type="button" class="sort" data-sort="date">Date</button></th><th><button type="button" class="sort" data-sort="location">Location</button></th><th><button type="button" class="sort" data-sort="slot">Slot</button></th><th class="num"><button type="button" class="sort" data-sort="traffic">Vehicles/h</button></th><th class="num"><button type="button" class="sort" data-sort="heavy">Heavy %</button></th><th class="num"><button type="button" class="sort" data-sort="dust">Dust</button></th><th><span class="sr">Actions</span></th></tr></thead>
                   <tbody id="obsBody"></tbody>
                 </table>
               </div>
