@@ -382,6 +382,121 @@ $("obsBody").addEventListener("click", (e) => {
   }
 });
 
+// ---------- field counter: tap once per vehicle, get vehicles per hour and the heavy share ----------
+const counter = { light: 0, heavy: 0, taps: [], elapsed: 0, since: 0, running: false, done: false, result: null };
+let counterTimer, wakeLock;
+const counterTarget = () => Number($("cDur").value) * 60000;
+const counterElapsed = () => counter.elapsed + (counter.running ? Date.now() - counter.since : 0);
+const clock = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+function counterRender() {
+  const total = counter.light + counter.heavy;
+  $("cTime").textContent = clock(counterTarget() - counterElapsed());
+  $("nLight").textContent = counter.light;
+  $("nHeavy").textContent = counter.heavy;
+  $("cPause").textContent = counter.running || (!counter.elapsed && !total) ? "Pause" : "Resume";
+  $("cPause").disabled = counter.done || (!counter.running && !counter.elapsed && !total);
+  $("cUndo").disabled = counter.done || !counter.taps.length;
+  $("cFinish").disabled = counter.done || !total;
+  $("cDur").disabled = counter.running || counter.elapsed > 0 || total > 0;
+  $("tapLight").disabled = counter.done;
+  $("tapHeavy").disabled = counter.done;
+}
+function counterStart() {
+  if (counter.running || counter.done) return;
+  counter.running = true;
+  counter.since = Date.now();
+  clearInterval(counterTimer);
+  counterTimer = setInterval(counterTick, 250);
+  // keep the screen on while someone stands at the roadside counting
+  try { navigator.wakeLock?.request("screen").then((l) => { wakeLock = l; }).catch(() => {}); } catch (e) { /* not supported */ }
+  counterRender();
+}
+function counterPause() {
+  if (!counter.running) { counterStart(); return; } // the button doubles as Resume
+  counter.elapsed = counterElapsed();
+  counter.running = false;
+  clearInterval(counterTimer);
+  counterRender();
+}
+function counterTick() { if (counterElapsed() >= counterTarget()) counterFinish(); else counterRender(); }
+function counterTap(kind) {
+  if (counter.done) return;
+  counterStart();
+  counter[kind]++;
+  counter.taps.push(kind);
+  navigator.vibrate?.(15);
+  counterRender();
+}
+function counterUndo() {
+  const kind = counter.taps.pop();
+  if (kind) { counter[kind]--; counterRender(); }
+}
+function counterFinish() {
+  if (counter.done) return;
+  counter.elapsed = Math.min(counterElapsed(), counterTarget());
+  counter.running = false;
+  counter.done = true;
+  clearInterval(counterTimer);
+  wakeLock?.release?.(); wakeLock = null;
+  navigator.vibrate?.([200, 100, 200]);
+  counterRender();
+  const total = counter.light + counter.heavy, secs = counter.elapsed / 1000;
+  if (secs < 30 || !total) { // too short to scale to an hour honestly
+    counter.result = null;
+    $("cResultText").textContent = "That was too short to scale up to an hour. Reset and count for a few minutes.";
+    $("cUse").hidden = true;
+  } else {
+    const perHour = Math.round((total / secs) * 3600), pct = Math.round((counter.heavy / total) * 1000) / 10;
+    counter.result = { perHour, pct };
+    $("cResultText").textContent = `${total} vehicles in ${clock(counter.elapsed)} means about ${perHour} vehicles per hour, and ${pct}% were trucks or buses.`;
+    $("cUse").hidden = false;
+  }
+  $("cResult").hidden = false;
+}
+function counterReset() {
+  if (counter.light + counter.heavy > 0 && !counter.done && !confirm("Discard this count and start again?")) return;
+  clearInterval(counterTimer);
+  wakeLock?.release?.(); wakeLock = null;
+  Object.assign(counter, { light: 0, heavy: 0, taps: [], elapsed: 0, since: 0, running: false, done: false, result: null });
+  $("cResult").hidden = true;
+  counterRender();
+}
+$("tapLight").addEventListener("click", () => counterTap("light"));
+$("tapHeavy").addEventListener("click", () => counterTap("heavy"));
+$("cPause").addEventListener("click", counterPause);
+$("cUndo").addEventListener("click", counterUndo);
+$("cFinish").addEventListener("click", counterFinish);
+$("cReset").addEventListener("click", counterReset);
+$("cDur").addEventListener("change", counterRender);
+$("cUse").addEventListener("click", () => {
+  if (!counter.result) return;
+  $("traffic").value = counter.result.perHour;
+  $("heavy").value = counter.result.pct;
+  if (!$("date").value) $("date").value = ymd(new Date());
+  $("obsForm").scrollIntoView({ behavior: calm ? "auto" : "smooth" });
+  toast("Filled in vehicles per hour and heavy vehicles. Add the location and dust, then save.");
+});
+counterRender();
+
+// ---------- dust calculator: dust collected on a plate -> mg/m2/day ----------
+function dustCalc() {
+  const mg = parseFloat($("dcMg").value), cm2 = parseFloat($("dcArea").value), days = parseFloat($("dcDays").value);
+  const ok = mg >= 0 && cm2 > 0 && days > 0;
+  const value = ok ? Math.round((mg / (cm2 / 10000) / days) * 10) / 10 : NaN;
+  $("dcOut").textContent = ok ? `${mg} mg on ${cm2} cm² over ${days} day(s) is ${value} mg/m²/day.` : "Enter the three numbers to see the result.";
+  $("dcUse").disabled = !ok;
+  return value;
+}
+["dcMg", "dcArea", "dcDays"].forEach((id) => $(id).addEventListener("input", dustCalc));
+$("dcUse").addEventListener("click", () => {
+  const value = dustCalc();
+  if (isNaN(value)) return;
+  $("dust").value = value;
+  $("dustCalc").open = false;
+  toast(`Dust set to ${value} mg/m²/day.`);
+});
+
 // ---------- sample data / clear ----------
 function loadSample() {
   observations = observations.filter((o) => !o.sample).concat(sampleObservations());
