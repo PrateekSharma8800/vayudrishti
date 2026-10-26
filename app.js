@@ -417,7 +417,20 @@ async function fetchAqi(lat, lon, key) {
     ["AQI updated", new Date(p.ts).toLocaleString()],
   ];
 }
-const LIVE_SOURCES = [{ name: "IQAir", keyId: "iqKey", run: fetchAqi }];
+async function fetchTraffic(lat, lon, key) {
+  const j = await getJson(`https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point=${lat},${lon}&key=${encodeURIComponent(key)}`);
+  const f = j.flowSegmentData; // speeds are km/h by default
+  const jam = f.freeFlowSpeed ? Math.max(0, Math.round((1 - f.currentSpeed / f.freeFlowSpeed) * 100)) + "%" : "–";
+  return [
+    ["Traffic speed", `${f.currentSpeed} km/h (free flow ${f.freeFlowSpeed})`],
+    ["Congestion", f.roadClosure ? "Road closed" : jam],
+    ["Traffic data confidence", Math.round(f.confidence * 100) + "%"],
+  ];
+}
+const LIVE_SOURCES = [
+  { name: "IQAir", keyId: "iqKey", run: fetchAqi },
+  { name: "TomTom", keyId: "ttKey", run: fetchTraffic },
+];
 
 ["lat", "lon", ...LIVE_SOURCES.map((s) => s.keyId)].forEach((id) => ($(id).value = live[id] || ""));
 

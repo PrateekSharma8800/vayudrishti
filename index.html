@@ -66,6 +66,7 @@
         </div>
         <div class="row">
           <label>IQAir API key <input type="password" id="iqKey" autocomplete="off"></label>
+          <label>TomTom API key <input type="password" id="ttKey" autocomplete="off"></label>
         </div>
         <div class="row">
           <button type="submit" id="liveBtn">Fetch live data</button>
@@ -74,7 +75,7 @@
       </form>
       <div class="cards" id="liveCards"></div>
       <p class="muted" id="liveNote" aria-live="polite"></p>
-      <p class="muted">AQI comes from the nearest IQAir station city, which may be some distance from your point. Free IQAir keys are rate-limited, so fetch sparingly.</p>
+      <p class="muted">AQI comes from the nearest IQAir station city, which may be some distance from your point. Free IQAir keys are rate-limited, so fetch sparingly. TomTom reports speed and congestion on the nearest road, not vehicle counts, so it does not replace the vehicles-per-hour you count in the field.</p>
     </section>
 
     <section id="observe" class="grid2">
