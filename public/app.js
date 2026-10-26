@@ -659,6 +659,55 @@ $("resetSurvey").addEventListener("click", () => {
   renderAll();
 });
 
+// ---------- survey totals: carry them between devices ----------
+const SURVEY_FILE = { bytes: 100000, maxResponses: 1000000 };
+// read a totals file; throws a message the user can act on if anything is off
+function readSurveyTotals(text) {
+  let d;
+  try { d = JSON.parse(text); } catch (e) { throw new Error("That is not a survey totals file."); }
+  if (!d || d.app !== "vayudrishti" || d.type !== "survey-totals" || d.version !== 1) throw new Error("That is not a VayuDrishti survey totals file.");
+  const whole = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
+  if (!whole(d.n, SURVEY_FILE.maxResponses) || !whole(d.near, d.n) || !d.counts || typeof d.counts !== "object") throw new Error("The numbers in that file do not add up.");
+  const counts = {};
+  for (const s of SYMPTOMS) {
+    const v = d.counts[s] ?? 0;
+    if (!whole(v, d.n)) throw new Error("The numbers in that file do not add up.");
+    counts[s] = v;
+  }
+  return { n: d.n, near: d.near, counts };
+}
+$("exportSurvey").addEventListener("click", () => {
+  if (!survey.n) { toast("No survey responses to export yet.", true); return; }
+  if (survey.sample) { toast("These totals include sample data. Remove the sample data first.", true); return; }
+  const file = { app: "vayudrishti", type: "survey-totals", version: 1, exported: new Date().toISOString(), n: survey.n, near: survey.near, counts: survey.counts };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }));
+  a.download = "vayudrishti-survey-totals.json";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+  toast("Survey totals exported.");
+});
+$("importSurvey").addEventListener("click", () => $("surveyFile").click());
+$("surveyFile").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (file.size > SURVEY_FILE.bytes) { toast("That file is too big to be a survey totals file.", true); return; }
+  let totals;
+  try { totals = readSurveyTotals(await file.text()); } catch (err) { toast(err.message, true); return; }
+  const question = survey.sample
+    ? `Your current survey totals are sample data and will be replaced by this file's ${totals.n} responses. Continue?`
+    : `Add ${totals.n} responses from this file to your totals? Adding the same file twice counts it twice.`;
+  if (!confirm(question)) return;
+  const before = survey;
+  const base = survey.sample ? newSurvey() : survey;
+  survey = { n: base.n + totals.n, near: base.near + totals.near, counts: {}, sample: false };
+  SYMPTOMS.forEach((s) => (survey.counts[s] = (base.counts[s] || 0) + totals.counts[s]));
+  if (!save(SURVEY_KEY, survey)) { survey = before; return; }
+  toast(`Added ${totals.n} responses. The survey now has ${survey.n}.`);
+  renderAll();
+});
+
 // ---------- live conditions ----------
 const LIVE_KEY = "aps_live";
 const live = load(LIVE_KEY, {});

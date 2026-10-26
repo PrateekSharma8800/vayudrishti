@@ -233,7 +233,7 @@
           <div class="grid2">
             <form id="surveyForm" class="panel">
               <h3>Anonymous response</h3>
-              <p class="muted">No names or personal details are stored, only running totals. Totals live in this browser only and are not shared with other devices, so to survey a group, collect everyone's answers on one device.</p>
+              <p class="muted">No names or personal details are stored, only running totals. Each device keeps its own totals; use <strong>Export totals</strong> and <strong>Add totals from a file</strong> to combine a group.</p>
               <fieldset>
                 <legend>Symptoms you often notice near busy roads</legend>
                 <label class="chk"><input type="checkbox" name="sym" value="Cough"> Cough</label>
@@ -254,6 +254,12 @@
               <h3>Results <span id="surveyTag" class="pill" hidden>includes sample</span></h3>
               <p id="surveyText" class="muted"></p>
               <div class="chart"><canvas id="cSurvey" role="img" aria-label="Bar chart of symptoms reported in the health survey, as percent of respondents"></canvas></div>
+              <div class="row actions">
+                <button type="button" class="ghost" id="exportSurvey">Export totals</button>
+                <button type="button" class="ghost" id="importSurvey">Add totals from a file</button>
+                <input type="file" id="surveyFile" accept=".json,application/json" hidden aria-label="Choose a survey totals file">
+              </div>
+              <p class="muted">Group study? Everyone exports their totals, and one person adds each file here to see the combined results. The files hold counts only, never names.</p>
             </div>
           </div>
         </section>
