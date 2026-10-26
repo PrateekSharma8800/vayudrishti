@@ -40,7 +40,7 @@ function makeEl(id) {
 // opts.store: initial localStorage; opts.fetch: fetch mock; opts.chart: provide a fake Chart.js
 function loadApp(opts = {}) {
   const store = opts.store || {};
-  const els = {}, charts = [], downloads = [], intervals = [];
+  const els = {}, charts = [], downloads = [], intervals = [], prints = [], winHandlers = {};
   const el = (id) => (els[id] ||= makeEl(id));
   const doc = {
     documentElement: Object.assign(makeEl("html"), { dataset: Object.assign(stringMap(), opts.theme ? { theme: opts.theme } : {}) }),
@@ -57,7 +57,8 @@ function loadApp(opts = {}) {
     matchMedia: (q) => ({ matches: /reduced-motion/.test(q) || (opts.dark && /dark/.test(q)) }),
     confirm: () => (opts.confirm ?? true),
     navigator: {}, location: { hash: "" }, getComputedStyle: () => ({ fontFamily: "Inter, sans-serif" }),
-    requestAnimationFrame: (fn) => fn(), addEventListener() {},
+    requestAnimationFrame: (fn) => fn(),
+    addEventListener: (type, fn) => { (winHandlers[type] ||= []).push(fn); }, print: () => { prints.push(1); },
     setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; }, clearTimeout,
     // intervals are recorded, not run, so tests can fire them by hand
     setInterval: (fn, ms) => { intervals.push({ fn, ms, active: true }); return intervals.length - 1; },
@@ -72,7 +73,7 @@ function loadApp(opts = {}) {
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(SOURCE, ctx);
-  return { els, ctx, store, charts, downloads, intervals, run: (code) => vm.runInContext(code, ctx) };
+  return { els, ctx, store, charts, downloads, intervals, prints, fire: (type) => (winHandlers[type] || []).forEach((fn) => fn()), run: (code) => vm.runInContext(code, ctx) };
 }
 
 // a fetch mock that answers by URL prefix

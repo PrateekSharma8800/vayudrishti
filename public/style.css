@@ -354,3 +354,31 @@ tbody tr:hover { background: var(--hover); }
   .js .reveal { opacity: 1; transform: none; }
   .ring .arc { stroke-dashoffset: calc(100 - var(--v, 0) * 100); }
 }
+
+/* ---------- print: a clean report on white paper ---------- */
+@media print {
+  @page { margin: 14mm; }
+  :root { color-scheme: light; }
+  *, *::before, *::after { transition: none !important; animation: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .haze, .top, .sidebar, .scrim, .nowbar, .toast, .foot, .lead, details.guide, details.mini, .counter, .filters, .row.actions,
+  #obsForm, #surveyForm, #liveForm, #liveNote, .history, #live .muted, #observe thead th:last-child, #obsBody td:last-child { display: none !important; }
+  #live:not(:has(#liveTop > *)) { display: none; }
+  .shell { display: block; padding: 0; }
+  main { max-width: none; padding: 0; }
+  main::before { content: "VayuDrishti report, " attr(data-printed); display: block; margin-bottom: 14pt; font: 600 10pt var(--font); color: #555; }
+  main > section { margin-bottom: 24pt; }
+  .js .reveal { opacity: 1 !important; transform: none !important; }
+  h2 { font-size: 20pt; margin-bottom: 10pt; break-after: avoid; }
+  .panel, .card { background: #fff !important; box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+  .panel { padding: 14pt; }
+  .grid2 { grid-template-columns: 1fr; }
+  #charts .grid2 { grid-template-columns: 1fr 1fr; gap: 12pt; }
+  .chart { height: 210px; }
+  .tablewrap { max-height: none; overflow: visible; margin: 8pt 0 0; }
+  th { position: static; }
+  tr { break-inside: avoid; }
+  .ring .arc { stroke-dashoffset: calc(100 - var(--v, 0) * 100) !important; }
+  .banner { border: 1px solid #999; background: #fff; }
+  a { color: inherit; text-decoration: none; }
+}
