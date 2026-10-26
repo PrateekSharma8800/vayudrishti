@@ -1,0 +1,22 @@
+# Render blueprint: New > Blueprint > pick this repo, then paste the two keys when asked.
+services:
+  - type: web
+    name: vayudrishti
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY   # Render puts a proxy in front, so read the client IP from X-Forwarded-For
+        value: "1"
+      - key: IQAIR_API_KEY
+        sync: false        # you enter these in the dashboard; they are never stored in the repo
+      - key: TOMTOM_API_KEY
+        sync: false
