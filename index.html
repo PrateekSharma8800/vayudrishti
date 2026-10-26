@@ -31,7 +31,7 @@
         </div>
       </div>
       <nav id="nav" aria-label="Main">
-        <a href="#dashboard">Dashboard</a><a href="#observe">Observations</a><a href="#charts">Charts</a>
+        <a href="#dashboard">Dashboard</a><a href="#live">Live</a><a href="#observe">Observations</a><a href="#charts">Charts</a>
         <a href="#hotspots">Hotspots</a><a href="#survey">Health Survey</a><a href="#method">Methodology</a>
       </nav>
     </div>
@@ -54,6 +54,27 @@
         </div>
       </div>
       <div class="cards" id="cards"></div>
+    </section>
+
+    <section id="live" class="panel">
+      <h2>Live conditions</h2>
+      <p class="muted">Fetch live data for one point. Your API keys and coordinates are saved only in this browser (plain text in localStorage), never in the code.</p>
+      <form id="liveForm">
+        <div class="row">
+          <label>Latitude <input type="number" id="lat" step="any" min="-90" max="90" required placeholder="28.6139"></label>
+          <label>Longitude <input type="number" id="lon" step="any" min="-180" max="180" required placeholder="77.2090"></label>
+        </div>
+        <div class="row">
+          <label>IQAir API key <input type="password" id="iqKey" autocomplete="off"></label>
+        </div>
+        <div class="row">
+          <button type="submit" id="liveBtn">Fetch live data</button>
+          <button type="button" class="ghost" id="useLoc">Use my location</button>
+        </div>
+      </form>
+      <div class="cards" id="liveCards"></div>
+      <p class="muted" id="liveNote" aria-live="polite"></p>
+      <p class="muted">AQI comes from the nearest IQAir station city, which may be some distance from your point. Free IQAir keys are rate-limited, so fetch sparingly.</p>
     </section>
 
     <section id="observe" class="grid2">
