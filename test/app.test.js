@@ -330,3 +330,15 @@ test("the dust calculator works out mg per square metre per day", async () => {
   await app.els.dcArea.trigger("input");
   assert.equal(app.els.dcUse.disabled, true, "a zero area cannot be used");
 });
+
+test("the live result explains what the AQI means for people", async () => {
+  const app = loadApp({ fetch: async (u) => json(u.startsWith("/api/aqi") ? AQI : TRAFFIC) });
+  fill(app, { place: "28.6315,77.2167" });
+  await app.els.liveForm.trigger("submit");
+  assert.match(app.els.liveTop.innerHTML, /asthma, heart or lung disease/);
+  assert.match(app.els.liveTop.innerHTML, /not medical advice/);
+  assert.equal(app.run("aqiAdvice(30)"), "Air quality is satisfactory. Enjoy being outdoors.");
+  assert.match(app.run("aqiAdvice(180)"), /Everyone may start to feel effects/);
+  assert.match(app.run("aqiAdvice(250)"), /Health warning/);
+  assert.match(app.run("aqiAdvice(450)"), /Health emergency/);
+});
