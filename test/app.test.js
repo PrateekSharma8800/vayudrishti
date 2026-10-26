@@ -236,3 +236,109 @@ test("the observations intro can load the sample data", async () => {
   await app.els.guideSample.click();
   assert.equal(saved(app, "aps_observations").length, 30);
 });
+
+// ---- field counter and dust calculator ----
+// time is controlled by hand: the app reads Date.now(), and setInterval is recorded, not run
+const clockAt = (app, ms) => app.run(`Date.now = () => ${ms}`);
+const tick = (app) => app.intervals.filter((i) => i.active).at(-1).fn();
+
+test("the field counter turns taps into vehicles per hour and the heavy share", async () => {
+  const app = loadApp();
+  clockAt(app, 1_000_000);
+  fill(app, { cDur: "5" });
+  for (let i = 0; i < 9; i++) await app.els.tapLight.click();
+  await app.els.tapHeavy.click();
+  assert.equal(app.els.nLight.textContent, "9");
+  assert.equal(app.els.nHeavy.textContent, "1");
+  clockAt(app, 1_000_000 + 5 * 60_000); // five minutes later
+  await tick(app);
+  assert.equal(app.els.cResult.hidden, false);
+  assert.match(app.els.cResultText.textContent, /10 vehicles in 5:00 means about 120 vehicles per hour, and 10% were trucks or buses/);
+  assert.equal(app.els.cTime.textContent, "0:00");
+  assert.equal(app.els.tapLight.disabled, true, "no more taps once it is done");
+});
+
+test("using the counter fills the form", async () => {
+  const app = loadApp();
+  clockAt(app, 0);
+  fill(app, { cDur: "5" });
+  for (let i = 0; i < 3; i++) await app.els.tapLight.click();
+  await app.els.tapHeavy.click();
+  clockAt(app, 5 * 60_000);
+  await tick(app);
+  await app.els.cUse.click();
+  assert.equal(app.els.traffic.value, "48");
+  assert.equal(app.els.heavy.value, "25");
+  assert.match(app.els.toast.textContent, /Filled in vehicles per hour/);
+});
+
+test("the counter can pause, resume, undo and finish early", async () => {
+  const app = loadApp();
+  fill(app, { cDur: "10" }); // the page starts with 10 minutes selected
+  clockAt(app, 0);
+  await app.els.tapLight.click();                      // starts the timer
+  await app.els.tapHeavy.click();
+  await app.els.cUndo.click();                          // takes the heavy tap back
+  assert.equal(app.els.nHeavy.textContent, "0");
+  clockAt(app, 60_000);
+  await app.els.cPause.click();
+  assert.equal(app.els.cPause.textContent, "Resume");
+  clockAt(app, 10 * 60_000);                            // time passes while paused
+  assert.equal(app.els.cTime.textContent, "9:00", "paused time is not counted");
+  await app.els.cPause.click();
+  clockAt(app, 10 * 60_000 + 60_000);
+  await app.els.cFinish.click();
+  assert.match(app.els.cResultText.textContent, /1 vehicles in 2:00 means about 30 vehicles per hour, and 0% were trucks/);
+});
+
+test("a count that is too short is not scaled up to an hour", async () => {
+  const app = loadApp();
+  clockAt(app, 0);
+  await app.els.tapLight.click();
+  clockAt(app, 10_000);
+  await app.els.cFinish.click();
+  assert.match(app.els.cResultText.textContent, /too short/);
+  assert.equal(app.els.cUse.hidden, true);
+});
+
+test("resetting a count asks first, then starts clean", async () => {
+  const app = loadApp({ confirm: false });
+  await app.els.tapLight.click();
+  await app.els.cReset.click();
+  assert.equal(app.els.nLight.textContent, "1", "declining the prompt keeps the count");
+  const sure = loadApp();
+  await sure.els.tapLight.click();
+  await sure.els.cReset.click();
+  assert.equal(sure.els.nLight.textContent, "0");
+  assert.equal(sure.els.cResult.hidden, true);
+  assert.equal(sure.els.cDur.disabled, false);
+});
+
+test("the dust calculator works out mg per square metre per day", async () => {
+  const app = loadApp();
+  assert.equal(typeof app.els.dcUse.disabled, "boolean");
+  fill(app, { dcMg: "2.5", dcArea: "200", dcDays: "1" });
+  await app.els.dcMg.trigger("input");
+  assert.match(app.els.dcOut.textContent, /is 125 mg\/m²\/day/);
+  assert.equal(app.els.dcUse.disabled, false);
+  await app.els.dcUse.click();
+  assert.equal(app.els.dust.value, "125");
+  fill(app, { dcDays: "2" });
+  await app.els.dcDays.trigger("input");
+  assert.match(app.els.dcOut.textContent, /is 62.5 mg\/m²\/day/);
+  fill(app, { dcArea: "0" });
+  await app.els.dcArea.trigger("input");
+  assert.equal(app.els.dcUse.disabled, true, "a zero area cannot be used");
+});
+
+test("the live result explains what the AQI means for people", async () => {
+  const app = loadApp({ fetch: async (u) => json(u.startsWith("/api/aqi") ? AQI : TRAFFIC) });
+  fill(app, { place: "28.6315,77.2167" });
+  await app.els.liveForm.trigger("submit");
+  assert.match(app.els.liveTop.innerHTML, /asthma, heart or lung disease/);
+  assert.match(app.els.liveTop.innerHTML, /not medical advice/);
+  assert.equal(app.run("aqiAdvice(30)"), "Air quality is satisfactory. Enjoy being outdoors.");
+  assert.match(app.run("aqiAdvice(180)"), /Everyone may start to feel effects/);
+  assert.match(app.run("aqiAdvice(250)"), /Health warning/);
+  assert.match(app.run("aqiAdvice(450)"), /Health emergency/);
+});

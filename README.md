@@ -4,56 +4,77 @@
 
 [![Tests](https://github.com/PrateekSharma8800/vayudrishti/actions/workflows/test.yml/badge.svg)](https://github.com/PrateekSharma8800/vayudrishti/actions/workflows/test.yml)
 
-**VayuDrishti** (वायुदृष्टि: *vayu* = air, *drishti* = sight) is a small dashboard for urban air quality and traffic impact studies. Log field observations (traffic counts and dust deposition), rank hotspots, run an anonymous health survey, and pull **live AQI** and **live traffic** for any point on the map.
+**VayuDrishti** (वायुदृष्टि: *vayu* = air, *drishti* = sight) is a tool for studying air quality and traffic in a city. You count vehicles and measure dust at a few spots, and it ranks the spots, draws the charts and shows how traffic and dust move together. Next to your own field data it shows **live air quality and live traffic** for 46 places across Delhi NCR, with a plain-language note on what the air means for people.
 
-No frameworks, no build step, no dependencies. Plain HTML, CSS and JavaScript, plus a tiny Node server that keeps your API keys off the browser.
+No frameworks, no build step, no dependencies: plain HTML, CSS and JavaScript, plus a tiny Node server (or two serverless functions on Vercel) that keeps your API keys off the browser.
 
 ![VayuDrishti dashboard in light mode, with the haze tinted by a live AQI reading](docs/screenshots/dashboard-light.jpg)
 
 <details>
 <summary>More screenshots</summary>
 
+![The field counter](docs/screenshots/field-counter.jpg)
+![Live readings over time](docs/screenshots/live-history.jpg)
 ![Dashboard in dark mode](docs/screenshots/dashboard-dark.jpg)
 ![Charts in dark mode](docs/screenshots/charts-dark.jpg)
 
 </details>
 
-## Features
+## What you can do
 
-- **Dashboard:** summary, filters (location, dates), and key numbers that count up when they change.
-- **Observations:** the readings you take yourself in the field (vehicles counted, share of heavy vehicles, dust collected). A built-in guide explains how to take one. Add, edit and delete records; data lives in your browser (`localStorage`). Export to CSV and import it back on another device: rows are validated, duplicates and demo rows are skipped, and nothing existing is overwritten.
-- **Charts:** traffic and dust over time, traffic vs dust, and a location comparison.
-- **Hotspots:** every location scored 0 to 100 (see below) and ranked.
-- **Live conditions:** pick any of about 45 places across Delhi, Noida, Gurugram, Ghaziabad and Faridabad (no latitude or longitude needed) to get the US AQI from [IQAir](https://www.iqair.com/air-pollution-data-api) and current speed and congestion from [TomTom](https://developer.tomtom.com/). After a fetch the page's atmosphere takes the colour of the air.
-- **Health survey:** an anonymous, aggregate-only survey (totals only, per browser).
-- **Sample data:** clearly labelled demo records you can load and remove without touching your own data.
-- **Design:** light and dark themes, responsive down to phones, keyboard friendly, honours reduced motion and reduced transparency. The reasoning is in [DESIGN.md](DESIGN.md).
+**Take your own readings (Observations)**
+- **Field counter:** stand at a spot and tap one button per vehicle (cars, bikes and autos; trucks and buses). A 5, 10 or 15 minute timer starts on the first tap. At the end you get vehicles per hour and the heavy-vehicle share, and one button fills the form.
+- **Dust calculator:** turn milligrams on a plate, its area and the days left out into mg/m²/day.
+- **Records:** add, edit and delete observations; sort by any column; search by place, date or notes. Data lives in your browser.
+- **CSV export and import:** move observations between devices. Imports are checked row by row; duplicates and demo rows are skipped and nothing existing is overwritten.
+- **Sample data:** clearly labelled demo records to explore with, removable at any time without touching your own data.
+
+**Understand them (Dashboard, Charts, Hotspots)**
+- A summary, filters by place and date, and key numbers that count up when they change.
+- Charts of traffic and dust over time, traffic against dust, and a comparison of places.
+- Every place gets a hotspot score from 0 to 100 and a rank (see below).
+
+**See the air right now (Live)**
+- Pick one of **46 places in Delhi NCR** (no latitude or longitude needed) to get the US AQI from [IQAir](https://www.iqair.com/air-pollution-data-api) and speed and congestion from [TomTom](https://developer.tomtom.com/). "Somewhere else" accepts coordinates, and "Use my location" fills them.
+- A ring shows the AQI, with a plain-language note for that band based on the US EPA's categories. The page's background haze takes the colour of the air.
+- Every reading is saved in your browser and drawn as a **trend** for that place. An optional **15 minute auto-refresh** pauses while the tab is hidden.
+
+**Ask people (Health survey)**
+- An anonymous survey that stores counts only. Export your totals and add other people's files to combine a group.
+
+**Share the result**
+- **Print report:** a clean, dated report on white paper (or "Save as PDF" from the print dialog), whatever theme you were using.
+
+**Comfortable to use**
+- Light and dark themes, phone to desktop, keyboard friendly, honours reduced motion and reduced transparency. See [DESIGN.md](DESIGN.md).
 
 ## Quick start
 
 Needs [Node.js](https://nodejs.org/) 20.12 or newer. There is nothing to install.
 
 ```bash
-cp .env.example .env      # then add your keys (see below)
-node server.js            # or: npm start
+cp .env.example .env      # then add your two API keys (see below)
+npm start                 # same as: node server.js
 ```
 
-Open <http://localhost:8000>. Everything except the **Live** section also works by simply opening `public/index.html` in a browser.
+Open <http://localhost:8000>. Everything except **Live** also works by simply opening `public/index.html` in a browser.
 
-## Live data and API keys
+New to the idea? Press **Load sample data** to see a finished study, then read the [user guide](docs/USER_GUIDE.md).
 
-The Live section needs two keys (both have free tiers):
+## API keys
+
+The Live section needs two keys (both have free plans):
 
 ```
 IQAIR_API_KEY=...
 TOMTOM_API_KEY=...
 ```
 
-Put them in `.env`, which is git-ignored (when deployed, set them as environment variables instead). `server.js` adds the keys to the API calls itself, so they are never sent to the browser or committed. It serves only the three files in `public/`, and listens on `127.0.0.1`.
+Put them in `.env`, which is git-ignored. The server adds them to the provider calls itself, so they never reach the browser or the repository. When you deploy, set them as environment variables instead (see [docs/DEPLOY.md](docs/DEPLOY.md)).
 
-- It is meant for **local use**. If you deploy it publicly, put it behind your own authentication and rate limiting first.
-- Free IQAir keys are rate limited, so the page fetches only when you press **Fetch**. You can opt in to **Refresh every 15 minutes**; it pauses while the tab is hidden.
-- TomTom reports speed and congestion on the nearest road, **not vehicle counts**, so it complements the vehicles per hour you count in the field instead of replacing it.
+- The AQI comes from the **nearest IQAir station city**, so places in one city often show the same number. The traffic numbers are for **the road at the place you picked**, so they differ.
+- TomTom reports speed and congestion, **not vehicle counts**. It complements the vehicles per hour you count yourself.
+- Free IQAir keys are small. The server reuses a reading for 10 minutes, limits each visitor and stops at a daily cap, so a busy page cannot use up your quota.
 
 ## How the hotspot score works
 
@@ -61,67 +82,37 @@ Put them in `.env`, which is git-ignored (when deployed, set them as environment
 score = 40% dust + 40% traffic + 20% heavy-vehicle share
 ```
 
-Each part is the location's average measured against a fixed reference (300 mg/m²/day, 2000 vehicles/h, 30% heavy) and capped at 1, so a score does not change just because another location was added. Below 40 is Low, 40 to 69 Moderate, 70 and above High. The references are teaching values you can change (`REF` in `public/app.js`); this is not an official air quality index.
-
-## Project structure
-
-| File | What it is |
-|---|---|
-| `public/index.html` | The page (markup and icons) |
-| `public/style.css` | Design tokens, glass surfaces, motion |
-| `public/app.js` | State, rendering, charts, live data |
-| `server.js` | Local and Docker/Render server (reads `.env`) |
-| `DESIGN.md` | The design philosophy |
-| `.env.example` | The keys and optional settings |
-| `lib/` | Live-data proxy and security headers, shared by every host |
-| `api/`, `vercel.json` | Vercel serverless functions and settings |
-| `Dockerfile`, `render.yaml` | Docker and Render (see Deploy) |
-| `scripts/sync-vercel.js` | Regenerates `vercel.json` from the page |
-
-Charts use [Chart.js](https://www.chartjs.org/) from a CDN with an integrity hash; headings use Fraunces and Inter from Google Fonts (system fonts are the fallback).
+Each part is the place's average measured against a fixed reference (300 mg/m²/day, 2000 vehicles/h, 30% heavy) and capped at 1, so a score does not change just because another place was added. Below 40 is Low, 40 to 69 Moderate, 70 and above High. The references are teaching values you can change (`REF` in `public/app.js`); this is not an official air quality index.
 
 ## Deploy
 
-VayuDrishti is one small Node process with no database. Visitors' observations and survey answers stay in their own browsers; the only secrets on the server are the two API keys.
+One small Node process (or two serverless functions) and no database. **Vercel** is the recommended host: import the repository, add the two keys as environment variables, deploy. [docs/DEPLOY.md](docs/DEPLOY.md) has step-by-step instructions for Vercel, Render, Docker and any Node host, the full list of settings, and what to do when something goes wrong.
 
-**Vercel (recommended; free Hobby plan).**
+## Documentation
 
-1. Make sure the person deploying can open this repository on GitHub (add them as a collaborator, or they fork it).
-2. On [vercel.com](https://vercel.com) choose **Add New > Project** and import the repository. Leave every setting as it is: `vercel.json` already says "no framework, nothing to build, serve `public/`".
-3. Before pressing **Deploy**, open **Environment Variables** and add `IQAIR_API_KEY` and `TOMTOM_API_KEY` (for Production and Preview). If the project was already deployed, add them under **Settings > Environment Variables** and **Redeploy**.
-4. Open the URL and press **Fetch live data**.
+| Read this | If you want to |
+|---|---|
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Run a field study and read the results (no coding needed) |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Put it on the internet |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Understand or change the code |
+| [DESIGN.md](DESIGN.md) | Know why it looks and moves the way it does |
+| [CHANGELOG.md](CHANGELOG.md) | See what changed and when |
 
-Command-line version: `npx vercel`, then `npx vercel env add IQAIR_API_KEY`, `npx vercel env add TOMTOM_API_KEY`, then `npx vercel --prod`.
+## Project structure
 
-How it works there: the page is served as static files from `public/`, and `/api/aqi` and `/api/traffic` are serverless functions in `api/` that run the same code as `server.js` (`lib/live.js`). `server.js` is not used on Vercel. Good readings are cached on Vercel's CDN for 10 minutes, so repeat visitors never reach a function. The per-visitor rate limit and the daily cap live in each function instance's memory, so on serverless they are best effort; the CDN cache is what really protects the free quota. If you edit the inline script in `public/index.html`, run `npm run sync:vercel` to refresh the security headers in `vercel.json` (a test fails if you forget).
+| Path | What it is |
+|---|---|
+| `public/` | The site: `index.html`, `style.css`, `app.js` |
+| `server.js` | Local, Docker and Render server (reads `.env`) |
+| `lib/` | The live-data proxy and security headers, shared by every host |
+| `api/`, `vercel.json` | Vercel serverless functions and settings |
+| `scripts/sync-vercel.js` | Regenerates `vercel.json` from the page |
+| `test/` | Tests (`npm test`) |
+| `Dockerfile`, `render.yaml` | Docker and Render deployment |
+| `.env.example` | The keys and optional settings |
+| `docs/` | Guides and screenshots |
 
-**Render (always-on server, free plan).** In Render choose **New > Blueprint**, pick this repository, and paste the two keys when asked. `render.yaml` sets everything else. The free plan sleeps after a while, so the first visit after a quiet period takes a minute.
-
-**Docker (Fly.io, Railway, Cloud Run, a VPS...).**
-
-```bash
-docker build -t vayudrishti .
-docker run -p 8080:8080 -e IQAIR_API_KEY=... -e TOMTOM_API_KEY=... vayudrishti
-```
-
-Add `-e TRUST_PROXY=1` when a proxy or load balancer sits in front, so rate limits see each visitor's real address.
-
-**Any Node host.** Run `HOST=0.0.0.0 node server.js` (platforms usually provide `PORT`) with the two keys in the environment. HTTPS comes from the host; in production the server also sends HSTS.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `IQAIR_API_KEY`, `TOMTOM_API_KEY` | none | Needed for the Live section |
-| `HOST` | `127.0.0.1` | Set `0.0.0.0` to accept outside connections |
-| `PORT` | `8000` | Port to listen on |
-| `TRUST_PROXY` | off | `1` when behind a proxy |
-| `NODE_ENV` | none | `production` turns on HSTS |
-| `CACHE_SECONDS` | `600` | A reading is reused for this long, per place |
-| `RATE_LIMIT` | `30` | API requests per visitor per minute |
-| `DAILY_UPSTREAM_CAP` | `400` | Calls per provider per day |
-
-**Protecting your keys' free quota.** A public site spends your quota, so the server caches good readings, limits each visitor, and stops at a daily cap per provider (IQAir's free plan allows about 500 calls a day). Visitors see a clear message when a limit is reached. `GET /healthz` returns `ok` for health checks.
-
-**Static-only hosts** (GitHub Pages, Netlify drop) can show everything except the Live section, which needs a server or functions.
+Charts use [Chart.js](https://www.chartjs.org/) from a CDN with an integrity hash; headings use Fraunces and Inter from Google Fonts (system fonts are the fallback).
 
 ## Tests
 
@@ -129,15 +120,17 @@ Add `-e TRUST_PROXY=1` when a proxy or load balancer sits in front, so rate limi
 npm test
 ```
 
-Uses Node's built-in test runner, so there is still nothing to install. The server tests start `server.js` against a fake data provider; the app tests run `app.js` in a small fake browser (`test/helpers/dom.js`). A GitHub Action runs them on Node 20 and 22 for every push and pull request.
+Node's built-in test runner, so there is still nothing to install. The tests cover the server, the Vercel functions, the live-data limits and cache, the security headers, and the whole app running in a small fake browser (`test/helpers/dom.js`). A GitHub Action runs them on Node 20 and 22 for every push and pull request, and builds the Docker image.
 
 ## Limits
 
 - Small, non-random samples: results show patterns, not proof.
 - Dust deposition is not the same as PM2.5 or PM10 concentration.
-- Survey totals and observations are stored per browser, so they are not shared across devices.
-- The traffic and dust correlation pools all locations, so differences between places can drive it.
+- The traffic and dust correlation pools all places, so differences between places can drive it.
+- Place coordinates are approximate (a few hundred metres).
+- Observations and survey totals are stored per browser. Export them regularly: clearing your browser's site data deletes them.
+- The health notes are general guidance from US EPA categories, not medical advice.
 
 ## Privacy
 
-Observations and survey totals never leave your browser. The only network calls are the live-data requests you trigger, which go through `server.js` to IQAir and TomTom with the coordinates you entered.
+Observations, survey totals and saved live readings never leave your browser. When the page opens it loads Chart.js from jsDelivr and the fonts from Google Fonts. Beyond that, the only network calls are the live-data requests you trigger, which go through the server to IQAir and TomTom with the coordinates of the place you chose. There are no accounts, cookies or analytics.
