@@ -63,14 +63,15 @@ New to the idea? Press **Load sample data** to see a finished study, then read t
 
 ## API keys
 
-The Live section needs two keys (both have free plans):
+The Live section needs two keys, and the Stations section needs a third (all have free plans):
 
 ```
 IQAIR_API_KEY=...
 TOMTOM_API_KEY=...
+XKDR_API_KEY=...     # https://airquality.xkdr.org/signup
 ```
 
-Put them in `.env`, which is git-ignored. The server adds them to the provider calls itself, so they never reach the browser or the repository. When you deploy, set them as environment variables instead (see [docs/DEPLOY.md](docs/DEPLOY.md)).
+Put them in `.env`, which is git-ignored. Without `XKDR_API_KEY` everything else still works; the Stations section just says the key is missing. The server adds them to the provider calls itself, so they never reach the browser or the repository. When you deploy, set them as environment variables instead (see [docs/DEPLOY.md](docs/DEPLOY.md)).
 
 - The AQI comes from the **nearest IQAir station city**, so places in one city often show the same number. The traffic numbers are for **the road at the place you picked**, so they differ.
 - TomTom reports speed and congestion, **not vehicle counts**. It complements the vehicles per hour you count yourself.
@@ -86,7 +87,7 @@ Each part is the place's average measured against a fixed reference (300 mg/m²/
 
 ## Deploy
 
-One small Node process (or two serverless functions) and no database. **Vercel** is the recommended host: import the repository, add the two keys as environment variables, deploy. [docs/DEPLOY.md](docs/DEPLOY.md) has step-by-step instructions for Vercel, Render, Docker and any Node host, the full list of settings, and what to do when something goes wrong.
+One small Node process (or two serverless functions) and no database. **Vercel** is the recommended host: import the repository, add the keys as environment variables, deploy. [docs/DEPLOY.md](docs/DEPLOY.md) has step-by-step instructions for Vercel, Render, Docker and any Node host, the full list of settings, and what to do when something goes wrong.
 
 ## Documentation
 
