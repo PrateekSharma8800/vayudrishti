@@ -100,6 +100,7 @@
               <div class="row actions">
                 <button type="submit" id="liveBtn">Fetch live data</button>
                 <button type="button" class="ghost" id="useLoc"><svg class="ic" aria-hidden="true"><use href="#i-loc"/></svg>Use my location</button>
+                <label class="chk"><input type="checkbox" id="autoLive"> Refresh every 15 minutes</label>
               </div>
             </form>
             <div class="live-top" id="liveTop"></div>
@@ -141,6 +142,8 @@
                 <button type="button" class="ghost" id="loadSample">Load sample data</button>
                 <button type="button" class="ghost" id="removeSample">Remove sample data</button>
                 <button type="button" class="ghost" id="exportCsv">Export CSV</button>
+                <button type="button" class="ghost" id="importCsv">Import CSV</button>
+                <input type="file" id="importFile" accept=".csv,text/csv" hidden aria-label="Choose a CSV file to import">
                 <button type="button" class="ghost danger" id="clearAll">Delete all</button>
               </div>
               <div class="tablewrap">
