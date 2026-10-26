@@ -12,7 +12,7 @@ const stringMap = () => new Proxy({}, { set(t, k, v) { t[k] = String(v); return 
 function makeEl(id) {
   const classes = new Set(), attrs = {}, handlers = {};
   const el = {
-    id, value: "", checked: false, hidden: false, disabled: false, innerHTML: "", textContent: "", className: "",
+    id, checked: false, hidden: false, disabled: false, className: "",
     dataset: stringMap(), style: { setProperty() {} }, files: [],
     classList: {
       add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c),
@@ -29,6 +29,11 @@ function makeEl(id) {
     reset() {}, scrollIntoView() {}, requestSubmit() { return el.trigger("submit"); }, appendChild() {}, remove() {},
     querySelector: () => null, querySelectorAll: () => [],
   };
+  // like the real DOM, these always hold strings (setting a number stores its text)
+  for (const prop of ["value", "textContent", "innerHTML"]) {
+    let v = "";
+    Object.defineProperty(el, prop, { get: () => v, set: (x) => { v = String(x); }, enumerable: true });
+  }
   return el;
 }
 

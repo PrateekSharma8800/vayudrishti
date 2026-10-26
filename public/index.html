@@ -127,6 +127,31 @@
             </ol>
             <p class="muted">Cannot measure today? <a href="#live">Live conditions</a> shows the air and traffic right now, and the sample data shows how a finished study looks.</p>
           </details>
+          <div class="panel counter" id="counter">
+            <div class="counter-head">
+              <h3>Field counter</h3>
+              <label class="inline">Count for
+                <select id="cDur"><option value="5">5 minutes</option><option value="10" selected>10 minutes</option><option value="15">15 minutes</option></select>
+              </label>
+            </div>
+            <p class="muted">Standing at your spot? Tap a button for every vehicle that passes. The timer starts with your first tap. When time is up you get vehicles per hour and the heavy-vehicle share, ready to drop into the form below.</p>
+            <div class="counter-time" id="cTime" role="timer" aria-label="Time left">10:00</div>
+            <div class="counter-taps">
+              <button type="button" class="tap" id="tapLight" aria-label="Count a car, bike or auto"><span>Cars, bikes, autos</span><b id="nLight">0</b></button>
+              <button type="button" class="tap heavy" id="tapHeavy" aria-label="Count a truck or bus"><span>Trucks and buses</span><b id="nHeavy">0</b></button>
+            </div>
+            <div class="row actions">
+              <button type="button" class="ghost" id="cPause">Pause</button>
+              <button type="button" class="ghost" id="cUndo">Undo last tap</button>
+              <button type="button" class="ghost" id="cFinish">Finish now</button>
+              <button type="button" class="ghost danger" id="cReset">Reset</button>
+            </div>
+            <div class="counter-result" id="cResult" role="status" aria-live="polite" hidden>
+              <p id="cResultText"></p>
+              <button type="button" id="cUse">Use these numbers in the form</button>
+            </div>
+          </div>
+
           <div class="grid2">
             <form id="obsForm" class="panel">
               <h3 id="formTitle">Add observation</h3>
@@ -144,6 +169,16 @@
                 <label>Heavy vehicles (%) <span class="hint">Trucks and buses as a share of all vehicles</span><input type="number" id="heavy" min="0" max="100" value="10" required></label>
               </div>
               <label>Dust deposition (mg/m²/day) <span class="hint">From your weighed plate: dust in mg ÷ plate area in m² ÷ days</span><input type="number" id="dust" min="0" step="0.1" required></label>
+              <details class="mini" id="dustCalc">
+                <summary>Work it out from my plate</summary>
+                <div class="row">
+                  <label>Dust collected (mg) <input type="number" id="dcMg" min="0" step="any"></label>
+                  <label>Plate area (cm²) <input type="number" id="dcArea" min="0" step="any"></label>
+                  <label>Days left out <input type="number" id="dcDays" min="0" step="any" value="1"></label>
+                </div>
+                <p class="muted" id="dcOut" aria-live="polite">Enter the three numbers to see the result.</p>
+                <button type="button" class="ghost" id="dcUse" disabled>Use this value</button>
+              </details>
               <label>Notes <textarea id="notes" rows="2" maxlength="200" placeholder="Weather, construction nearby, etc."></textarea></label>
               <div class="row actions">
                 <button type="submit" id="saveBtn">Save observation</button>
