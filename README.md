@@ -70,10 +70,13 @@ Each part is the location's average measured against a fixed reference (300 mg/m
 | `public/index.html` | The page (markup and icons) |
 | `public/style.css` | Design tokens, glass surfaces, motion |
 | `public/app.js` | State, rendering, charts, live data |
-| `server.js` | Local server and API proxy (reads `.env`) |
+| `server.js` | Local and Docker/Render server (reads `.env`) |
 | `DESIGN.md` | The design philosophy |
 | `.env.example` | The keys and optional settings |
-| `Dockerfile`, `render.yaml` | Deployment (see Deploy) |
+| `lib/` | Live-data proxy and security headers, shared by every host |
+| `api/`, `vercel.json` | Vercel serverless functions and settings |
+| `Dockerfile`, `render.yaml` | Docker and Render (see Deploy) |
+| `scripts/sync-vercel.js` | Regenerates `vercel.json` from the page |
 
 Charts use [Chart.js](https://www.chartjs.org/) from a CDN with an integrity hash; headings use Fraunces and Inter from Google Fonts (system fonts are the fallback).
 
@@ -81,7 +84,18 @@ Charts use [Chart.js](https://www.chartjs.org/) from a CDN with an integrity has
 
 VayuDrishti is one small Node process with no database. Visitors' observations and survey answers stay in their own browsers; the only secrets on the server are the two API keys.
 
-**Render (easiest, free plan).** In Render choose **New > Blueprint**, pick this repository, and paste the two keys when asked. `render.yaml` sets everything else. The free plan sleeps after a while, so the first visit after a quiet period takes a minute.
+**Vercel (recommended; free Hobby plan).**
+
+1. Make sure the person deploying can open this repository on GitHub (add them as a collaborator, or they fork it).
+2. On [vercel.com](https://vercel.com) choose **Add New > Project** and import the repository. Leave every setting as it is: `vercel.json` already says "no framework, nothing to build, serve `public/`".
+3. Before pressing **Deploy**, open **Environment Variables** and add `IQAIR_API_KEY` and `TOMTOM_API_KEY` (for Production and Preview). If the project was already deployed, add them under **Settings > Environment Variables** and **Redeploy**.
+4. Open the URL and press **Fetch live data**.
+
+Command-line version: `npx vercel`, then `npx vercel env add IQAIR_API_KEY`, `npx vercel env add TOMTOM_API_KEY`, then `npx vercel --prod`.
+
+How it works there: the page is served as static files from `public/`, and `/api/aqi` and `/api/traffic` are serverless functions in `api/` that run the same code as `server.js` (`lib/live.js`). `server.js` is not used on Vercel. Good readings are cached on Vercel's CDN for 10 minutes, so repeat visitors never reach a function. The per-visitor rate limit and the daily cap live in each function instance's memory, so on serverless they are best effort; the CDN cache is what really protects the free quota. If you edit the inline script in `public/index.html`, run `npm run sync:vercel` to refresh the security headers in `vercel.json` (a test fails if you forget).
+
+**Render (always-on server, free plan).** In Render choose **New > Blueprint**, pick this repository, and paste the two keys when asked. `render.yaml` sets everything else. The free plan sleeps after a while, so the first visit after a quiet period takes a minute.
 
 **Docker (Fly.io, Railway, Cloud Run, a VPS...).**
 
@@ -107,7 +121,7 @@ Add `-e TRUST_PROXY=1` when a proxy or load balancer sits in front, so rate limi
 
 **Protecting your keys' free quota.** A public site spends your quota, so the server caches good readings, limits each visitor, and stops at a daily cap per provider (IQAir's free plan allows about 500 calls a day). Visitors see a clear message when a limit is reached. `GET /healthz` returns `ok` for health checks.
 
-**Static-only hosts** (GitHub Pages, Netlify drop) can show everything except the Live section, which needs the server.
+**Static-only hosts** (GitHub Pages, Netlify drop) can show everything except the Live section, which needs a server or functions.
 
 ## Tests
 
