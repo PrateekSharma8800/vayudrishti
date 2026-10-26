@@ -1,0 +1,11 @@
+.git
+.github
+.env
+.env.*
+node_modules
+test
+docs
+*.md
+Dockerfile
+.dockerignore
+render.yaml
