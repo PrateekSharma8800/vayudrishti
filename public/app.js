@@ -214,6 +214,7 @@ function renderAll() {
   renderHotspots(stats);
   renderCharts(data, stats);
   renderSurvey();
+  renderLiveHistory();
   $("sampleBanner").hidden = !observations.some((o) => o.sample) && !survey.sample;
 }
 
@@ -299,11 +300,14 @@ function draw(id, config) {
   charts[id] = new Chart($(id), config);
 }
 
+// sage accent, plus a warm clay for the second series, so colour only ever means data
+const palette = () => (document.documentElement.dataset.theme === "dark" ? { C1: "#7ccdb4", C2: "#e0a87c" } : { C1: "#2e7d6b", C2: "#b8743f" });
+
 function renderCharts(data, stats) {
   if (typeof Chart === "undefined") return; // CDN not loaded (offline)
   const dark = document.documentElement.dataset.theme === "dark";
   // sage accent, plus a warm clay for the second series, so colour only ever means data
-  const C1 = dark ? "#7ccdb4" : "#2e7d6b", C2 = dark ? "#e0a87c" : "#b8743f", C3 = C1;
+  const { C1, C2 } = palette(), C3 = C1;
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
   // average per date so each date is one point
   const dates = [...new Set(sorted.map((o) => o.date))];
@@ -838,6 +842,53 @@ $("nowBtn").addEventListener("click", () => {
   $("liveForm").requestSubmit();
 });
 
+// ---- saved readings: every successful fetch is kept (in this browser only) so a trend can be drawn ----
+const LOG_KEY = "aps_live_log", LOG_MAX = 200;
+let liveLog = load(LOG_KEY, []);
+if (!Array.isArray(liveLog)) liveLog = [];
+liveLog = liveLog.filter((r) => r && typeof r.t === "string" && typeof r.key === "string");
+const spotKey = (t) => `${t.lat.toFixed(4)},${t.lon.toFixed(4)}`;
+
+function logReading(target, cards, aqi) {
+  const num = (label) => { const c = cards.find((x) => x[0] === label); const v = c ? parseFloat(c[1]) : NaN; return isNaN(v) ? null : v; };
+  const row = { t: new Date().toISOString(), key: spotKey(target), name: target.name, aqi: isNaN(aqi) ? null : aqi, speed: num("Traffic speed"), cong: num("Congestion") };
+  if (row.aqi === null && row.speed === null) return;
+  const last = liveLog.filter((r) => r.key === row.key).at(-1);
+  if (last && Date.now() - Date.parse(last.t) < 120000) return; // the server reuses a reading for minutes, so do not log it twice
+  liveLog = liveLog.concat(row).slice(-LOG_MAX);
+  save(LOG_KEY, liveLog);
+}
+
+function renderLiveHistory() {
+  const t = liveTarget();
+  const rows = t ? liveLog.filter((r) => r.key === spotKey(t)) : [];
+  $("liveHistory").hidden = !rows.length;
+  $("liveChartBox").hidden = rows.length < 2;
+  if (rows.length < 2 && charts.cLive) { charts.cLive.destroy(); delete charts.cLive; }
+  if (!rows.length) return;
+  $("liveHistTitle").textContent = `${t.name}: readings over time`;
+  $("liveHistNote").textContent = rows.length < 2
+    ? "One reading so far. Fetch again later, or turn on auto-refresh, to see a trend."
+    : `${rows.length} readings, the latest on ${new Date(rows.at(-1).t).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. They are saved in this browser only.`;
+  if (rows.length < 2 || typeof Chart === "undefined") return;
+  const { C1, C2 } = palette();
+  draw("cLive", { type: "line", data: {
+    labels: rows.map((r) => new Date(r.t).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })),
+    datasets: [
+      { label: "US AQI", data: rows.map((r) => r.aqi), borderColor: C1, backgroundColor: C1, tension: 0.3, spanGaps: true, yAxisID: "y" },
+      { label: "Congestion (%)", data: rows.map((r) => r.cong), borderColor: C2, backgroundColor: C2, tension: 0.3, spanGaps: true, yAxisID: "y1" }] },
+    options: { scales: { y: { position: "left", title: { display: true, text: "US AQI" } }, y1: { position: "right", min: 0, max: 100, title: { display: true, text: "Congestion %" }, grid: { drawOnChartArea: false } } } } });
+}
+$("place").addEventListener("change", renderLiveHistory);
+["lat", "lon"].forEach((id) => $(id).addEventListener("change", renderLiveHistory));
+$("clearLive").addEventListener("click", () => {
+  if (!confirm("Delete all saved live readings?")) return;
+  liveLog = [];
+  save(LOG_KEY, liveLog);
+  renderLiveHistory();
+  toast("Saved readings deleted.");
+});
+
 $("liveForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const target = liveTarget();
@@ -863,6 +914,7 @@ $("liveForm").addEventListener("submit", async (e) => {
   $("nowBtn").textContent = "Refresh";
   // the AQI becomes an iris, and the haze behind the page takes its colour
   const aqiCard = cards.find((c) => c[0] === "AQI (US)"), aqi = aqiCard ? parseInt(aqiCard[1], 10) : NaN;
+  logReading(target, cards, aqi);
   if (!isNaN(aqi)) {
     const where = cards.find((c) => c[0] === "IQAir station city");
     $("liveTop").innerHTML = ring(aqi, 300, "US AQI", aqiBand(aqi)) +
@@ -875,6 +927,7 @@ $("liveForm").addEventListener("submit", async (e) => {
   }
   $("liveCards").className = "cards enter";
   $("liveCards").innerHTML = cards.map((c, i) => `<div class="card" style="--i:${i}"><small>${esc(c[0])}</small><b>${esc(c[1])}</b></div>`).join("");
+  renderLiveHistory();
   $("liveNote").textContent = results.map((r, i) => (r.status === "rejected" ? `${LIVE_SOURCES[i].name} failed: ${r.reason.message}.` : "")).join("");
 });
 

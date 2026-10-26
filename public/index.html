@@ -108,6 +108,12 @@
             </form>
             <div class="live-top" id="liveTop"></div>
             <div class="cards" id="liveCards"></div>
+            <div class="history" id="liveHistory" hidden>
+              <h3 id="liveHistTitle">Readings over time</h3>
+              <p class="muted" id="liveHistNote"></p>
+              <div class="chart" id="liveChartBox" hidden><canvas id="cLive" role="img" aria-label="Line chart of the US AQI and the congestion at the chosen place over time"></canvas></div>
+              <button type="button" class="ghost" id="clearLive">Clear saved readings</button>
+            </div>
             <p class="muted" id="liveNote" aria-live="polite"></p>
             <p class="muted">How to read this: the <strong>AQI</strong> comes from the nearest IQAir monitoring station, so places in the same city often show the same number. The <strong>traffic</strong> numbers are for the road at the place you picked, so they differ from place to place. TomTom reports speed and congestion, not vehicle counts, so it does not replace the vehicles per hour you count yourself in Observations. The server keeps readings for a few minutes, so pressing Fetch repeatedly will not change them.</p>
           </div>
