@@ -35,7 +35,7 @@ function makeEl(id) {
 // opts.store: initial localStorage; opts.fetch: fetch mock; opts.chart: provide a fake Chart.js
 function loadApp(opts = {}) {
   const store = opts.store || {};
-  const els = {}, charts = [], downloads = [];
+  const els = {}, charts = [], downloads = [], intervals = [];
   const el = (id) => (els[id] ||= makeEl(id));
   const doc = {
     documentElement: Object.assign(makeEl("html"), { dataset: Object.assign(stringMap(), opts.theme ? { theme: opts.theme } : {}) }),
@@ -54,7 +54,9 @@ function loadApp(opts = {}) {
     navigator: {}, location: { hash: "" }, getComputedStyle: () => ({ fontFamily: "Inter, sans-serif" }),
     requestAnimationFrame: (fn) => fn(), addEventListener() {},
     setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; }, clearTimeout,
-    setInterval: (fn, ms) => { const t = setInterval(fn, ms); t.unref?.(); return t; }, clearInterval,
+    // intervals are recorded, not run, so tests can fire them by hand
+    setInterval: (fn, ms) => { intervals.push({ fn, ms, active: true }); return intervals.length - 1; },
+    clearInterval: (id) => { if (intervals[id]) intervals[id].active = false; },
     fetch: opts.fetch || (async () => { throw new Error("no network in tests"); }),
     URL: { createObjectURL: (blob) => { downloads.push(blob); return "blob:test"; }, revokeObjectURL() {} },
   };
@@ -65,7 +67,7 @@ function loadApp(opts = {}) {
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(SOURCE, ctx);
-  return { els, ctx, store, charts, downloads, run: (code) => vm.runInContext(code, ctx) };
+  return { els, ctx, store, charts, downloads, intervals, run: (code) => vm.runInContext(code, ctx) };
 }
 
 // a fetch mock that answers by URL prefix

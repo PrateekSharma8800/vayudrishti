@@ -586,6 +586,19 @@ $("useLoc").addEventListener("click", () => {
     () => toast("Could not get your location.", true));
 });
 
+// optional auto-refresh: off by default (a free IQAir key has a small daily quota) and
+// skipped while the tab is hidden, so a forgotten tab costs nothing
+const AUTO_MS = 15 * 60 * 1000;
+let autoTimer;
+$("autoLive").addEventListener("change", () => {
+  clearInterval(autoTimer);
+  if (!$("autoLive").checked) { toast("Auto-refresh is off."); return; }
+  if (!$("lat").value || !$("lon").value) { $("autoLive").checked = false; toast("Enter coordinates first.", true); return; }
+  autoTimer = setInterval(() => { if (!document.hidden) $("liveForm").requestSubmit(); }, AUTO_MS);
+  toast("Live data will refresh every 15 minutes while this tab is open.");
+  $("liveForm").requestSubmit();
+});
+
 $("nowBtn").addEventListener("click", () => {
   if (!$("lat").value || !$("lon").value) { toast("Enter coordinates in Live conditions first."); location.hash = "#live"; return; }
   $("liveForm").requestSubmit();
