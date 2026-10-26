@@ -336,6 +336,13 @@ tbody tr:hover { background: var(--hover); }
   .filters > label, .filters > button { flex: 1 1 100%; }
   .chart { height: 240px; }
 }
+/* phones: blurring every panel is costly on cheaper GPUs, so only the header, floating bar and
+   drawer keep the blur; panels get a slightly firmer surface instead, and one haze blob is dropped */
+@media (max-width: 640px) {
+  :root { --surface: light-dark(rgb(255 252 246 / .9), rgb(32 28 22 / .88)); }
+  .panel, .card { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .haze i:nth-child(3) { display: none; }
+}
 /* touch: 44pt targets and 16px fields (stops iOS zooming on focus) */
 @media (pointer: coarse) {
   input, select, textarea, button, .btn { min-height: 44px; font-size: 16px; }
