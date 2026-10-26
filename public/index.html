@@ -27,6 +27,7 @@
       <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.4-7.5-10A4.4 4.4 0 0 1 12 7.2 4.4 4.4 0 0 1 19.5 10c0 5.6-7.5 10-7.5 10z"/></symbol>
       <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v11.5H8.5A3.5 3.5 0 0 1 5 16V4.5z"/><path d="M5 16a3.5 3.5 0 0 1 3.5-3.5H19"/></symbol>
       <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3.5"/><path d="M9.5 4.5v15"/></symbol>
+      <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V4.5h10V9"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v5.5H7z"/></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
@@ -48,6 +49,7 @@
     </a>
     <span class="spacer"></span>
     <a class="pill-btn" href="#observe"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>Add observation</span></a>
+    <button type="button" class="pill-btn" id="printBtn" aria-label="Print or save the report as PDF"><svg class="ic" aria-hidden="true"><use href="#i-print"/></svg><span>Print report</span></button>
     <button type="button" class="pill-btn icon" id="themeBtn" aria-label="Switch to dark mode"></button>
     <button type="button" class="pill-btn icon" id="menuBtn" aria-label="Show sections" aria-expanded="false" aria-controls="sidebar"><svg class="ic" aria-hidden="true"><use href="#i-sidebar"/></svg></button>
   </header>
@@ -108,6 +110,12 @@
             </form>
             <div class="live-top" id="liveTop"></div>
             <div class="cards" id="liveCards"></div>
+            <div class="history" id="liveHistory" hidden>
+              <h3 id="liveHistTitle">Readings over time</h3>
+              <p class="muted" id="liveHistNote"></p>
+              <div class="chart" id="liveChartBox" hidden><canvas id="cLive" role="img" aria-label="Line chart of the US AQI and the congestion at the chosen place over time"></canvas></div>
+              <button type="button" class="ghost" id="clearLive">Clear saved readings</button>
+            </div>
             <p class="muted" id="liveNote" aria-live="polite"></p>
             <p class="muted">How to read this: the <strong>AQI</strong> comes from the nearest IQAir monitoring station, so places in the same city often show the same number. The <strong>traffic</strong> numbers are for the road at the place you picked, so they differ from place to place. TomTom reports speed and congestion, not vehicle counts, so it does not replace the vehicles per hour you count yourself in Observations. The server keeps readings for a few minutes, so pressing Fetch repeatedly will not change them.</p>
           </div>
@@ -127,6 +135,31 @@
             </ol>
             <p class="muted">Cannot measure today? <a href="#live">Live conditions</a> shows the air and traffic right now, and the sample data shows how a finished study looks.</p>
           </details>
+          <div class="panel counter" id="counter">
+            <div class="counter-head">
+              <h3>Field counter</h3>
+              <label class="inline">Count for
+                <select id="cDur"><option value="5">5 minutes</option><option value="10" selected>10 minutes</option><option value="15">15 minutes</option></select>
+              </label>
+            </div>
+            <p class="muted">Standing at your spot? Tap a button for every vehicle that passes. The timer starts with your first tap. When time is up you get vehicles per hour and the heavy-vehicle share, ready to drop into the form below.</p>
+            <div class="counter-time" id="cTime" role="timer" aria-label="Time left">10:00</div>
+            <div class="counter-taps">
+              <button type="button" class="tap" id="tapLight" aria-label="Count a car, bike or auto"><span>Cars, bikes, autos</span><b id="nLight">0</b></button>
+              <button type="button" class="tap heavy" id="tapHeavy" aria-label="Count a truck or bus"><span>Trucks and buses</span><b id="nHeavy">0</b></button>
+            </div>
+            <div class="row actions">
+              <button type="button" class="ghost" id="cPause">Pause</button>
+              <button type="button" class="ghost" id="cUndo">Undo last tap</button>
+              <button type="button" class="ghost" id="cFinish">Finish now</button>
+              <button type="button" class="ghost danger" id="cReset">Reset</button>
+            </div>
+            <div class="counter-result" id="cResult" role="status" aria-live="polite" hidden>
+              <p id="cResultText"></p>
+              <button type="button" id="cUse">Use these numbers in the form</button>
+            </div>
+          </div>
+
           <div class="grid2">
             <form id="obsForm" class="panel">
               <h3 id="formTitle">Add observation</h3>
@@ -144,6 +177,16 @@
                 <label>Heavy vehicles (%) <span class="hint">Trucks and buses as a share of all vehicles</span><input type="number" id="heavy" min="0" max="100" value="10" required></label>
               </div>
               <label>Dust deposition (mg/m²/day) <span class="hint">From your weighed plate: dust in mg ÷ plate area in m² ÷ days</span><input type="number" id="dust" min="0" step="0.1" required></label>
+              <details class="mini" id="dustCalc">
+                <summary>Work it out from my plate</summary>
+                <div class="row">
+                  <label>Dust collected (mg) <input type="number" id="dcMg" min="0" step="any"></label>
+                  <label>Plate area (cm²) <input type="number" id="dcArea" min="0" step="any"></label>
+                  <label>Days left out <input type="number" id="dcDays" min="0" step="any" value="1"></label>
+                </div>
+                <p class="muted" id="dcOut" aria-live="polite">Enter the three numbers to see the result.</p>
+                <button type="button" class="ghost" id="dcUse" disabled>Use this value</button>
+              </details>
               <label>Notes <textarea id="notes" rows="2" maxlength="200" placeholder="Weather, construction nearby, etc."></textarea></label>
               <div class="row actions">
                 <button type="submit" id="saveBtn">Save observation</button>
@@ -161,10 +204,11 @@
                 <input type="file" id="importFile" accept=".csv,text/csv" hidden aria-label="Choose a CSV file to import">
                 <button type="button" class="ghost danger" id="clearAll">Delete all</button>
               </div>
+              <input type="search" id="obsSearch" placeholder="Search by place, date or notes" aria-label="Search saved observations" autocomplete="off">
               <div class="tablewrap">
                 <table>
                   <caption class="sr">Saved observations</caption>
-                  <thead><tr><th>Date</th><th>Location</th><th>Slot</th><th class="num">Vehicles/h</th><th class="num">Heavy %</th><th class="num">Dust</th><th><span class="sr">Actions</span></th></tr></thead>
+                  <thead id="obsHead"><tr><th aria-sort="descending"><button type="button" class="sort" data-sort="date">Date</button></th><th><button type="button" class="sort" data-sort="location">Location</button></th><th><button type="button" class="sort" data-sort="slot">Slot</button></th><th class="num"><button type="button" class="sort" data-sort="traffic">Vehicles/h</button></th><th class="num"><button type="button" class="sort" data-sort="heavy">Heavy %</button></th><th class="num"><button type="button" class="sort" data-sort="dust">Dust</button></th><th><span class="sr">Actions</span></th></tr></thead>
                   <tbody id="obsBody"></tbody>
                 </table>
               </div>
@@ -198,7 +242,7 @@
           <div class="grid2">
             <form id="surveyForm" class="panel">
               <h3>Anonymous response</h3>
-              <p class="muted">No names or personal details are stored, only running totals. Totals live in this browser only and are not shared with other devices, so to survey a group, collect everyone's answers on one device.</p>
+              <p class="muted">No names or personal details are stored, only running totals. Each device keeps its own totals; use <strong>Export totals</strong> and <strong>Add totals from a file</strong> to combine a group.</p>
               <fieldset>
                 <legend>Symptoms you often notice near busy roads</legend>
                 <label class="chk"><input type="checkbox" name="sym" value="Cough"> Cough</label>
@@ -219,6 +263,12 @@
               <h3>Results <span id="surveyTag" class="pill" hidden>includes sample</span></h3>
               <p id="surveyText" class="muted"></p>
               <div class="chart"><canvas id="cSurvey" role="img" aria-label="Bar chart of symptoms reported in the health survey, as percent of respondents"></canvas></div>
+              <div class="row actions">
+                <button type="button" class="ghost" id="exportSurvey">Export totals</button>
+                <button type="button" class="ghost" id="importSurvey">Add totals from a file</button>
+                <input type="file" id="surveyFile" accept=".json,application/json" hidden aria-label="Choose a survey totals file">
+              </div>
+              <p class="muted">Group study? Everyone exports their totals, and one person adds each file here to see the combined results. The files hold counts only, never names.</p>
             </div>
           </div>
         </section>

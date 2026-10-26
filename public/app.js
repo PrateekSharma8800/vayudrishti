@@ -28,6 +28,7 @@ if (!Array.isArray(observations)) observations = [];
 if (!survey.counts || typeof survey.n !== "number") survey = newSurvey();
 SYMPTOMS.forEach((s) => (survey.counts[s] = survey.counts[s] || 0));
 const charts = {};
+let printing = false; // while true, charts draw without animation so the page prints complete
 
 function newSurvey() {
   const counts = {};
@@ -69,6 +70,16 @@ function animateRings() {
   })));
 }
 const aqiBand = (n) => (n <= 50 ? 1 : n <= 100 ? 2 : n <= 150 ? 3 : n <= 200 ? 4 : 5);
+// plain-language guidance per US AQI band, following the US EPA's cautionary statements
+const AQI_ADVICE = [
+  "",
+  "Air quality is satisfactory. Enjoy being outdoors.",
+  "Acceptable for most people. If you are unusually sensitive to air pollution, consider shorter or lighter outdoor exertion.",
+  "People with asthma, heart or lung disease, children and older adults should reduce long or heavy outdoor exertion. Everyone else can carry on.",
+  "Everyone may start to feel effects. Sensitive groups should avoid long outdoor exertion; everyone else should take more breaks and go easier on outdoor exercise.",
+  "Health warning: everyone should avoid long or heavy outdoor exertion, and sensitive groups should stay indoors and keep activity light.",
+];
+const aqiAdvice = (n) => (n > 300 ? "Health emergency: everyone should avoid all outdoor exertion." : AQI_ADVICE[aqiBand(n)]);
 // the haze behind the page takes the colour of the air
 const setAtmosphere = (aqi) => { document.documentElement.dataset.aqi = aqiBand(aqi); };
 
@@ -91,6 +102,25 @@ $("themeBtn").addEventListener("click", () => {
   document.documentElement.classList.add("theming");
   setTimeout(() => document.documentElement.classList.remove("theming"), 650);
   applyTheme(next);
+  renderAll();
+});
+
+// ---------- print or save as PDF ----------
+// A report goes on white paper, so a dark theme is swapped for the light one while printing
+// (charts are redrawn in dark ink) and put back afterwards. Nothing is saved.
+let themeBeforePrint;
+$("printBtn").addEventListener("click", () => window.print());
+addEventListener("beforeprint", () => {
+  printing = true;
+  $("main").dataset.printed = ymd(new Date());
+  themeBeforePrint = document.documentElement.dataset.theme;
+  if (themeBeforePrint === "dark") applyTheme("light");
+  renderAll();
+});
+addEventListener("afterprint", () => {
+  printing = false;
+  if (themeBeforePrint === "dark") applyTheme("dark");
+  themeBeforePrint = undefined;
   renderAll();
 });
 
@@ -204,6 +234,7 @@ function renderAll() {
   renderHotspots(stats);
   renderCharts(data, stats);
   renderSurvey();
+  renderLiveHistory();
   $("sampleBanner").hidden = !observations.some((o) => o.sample) && !survey.sample;
 }
 
@@ -264,15 +295,35 @@ function renderCards(data, stats) {
 const prevCards = {};
 let cardsFirst = true;
 
+// click a column title to sort by it; click again to reverse. Newest first by default.
+let obsSort = { key: "date", dir: -1 };
+function setSort(key) {
+  obsSort = obsSort.key === key ? { key, dir: -obsSort.dir } : { key, dir: ["date", "traffic", "heavy", "dust"].includes(key) ? -1 : 1 };
+  renderTable(filtered());
+}
+$("obsHead").addEventListener("click", (e) => {
+  const b = e.target.closest?.("[data-sort]");
+  if (b) setSort(b.dataset.sort);
+});
+$("obsSearch").addEventListener("input", () => renderTable(filtered()));
+
 function renderTable(data) {
-  const rows = [...data].sort((a, b) => b.date.localeCompare(a.date));
+  const q = $("obsSearch").value.trim().toLowerCase();
+  const matches = q ? data.filter((o) => [o.date, o.location, o.slot, o.notes || ""].some((t) => String(t).toLowerCase().includes(q))) : data;
+  const { key, dir } = obsSort;
+  const val = (o) => (key === "slot" ? ["Morning", "Afternoon", "Evening"].indexOf(o.slot) : o[key]); // slots sort by time of day
+  const rows = [...matches].sort((a, b) => dir * (typeof val(a) === "number" ? val(a) - val(b) : String(val(a)).localeCompare(String(val(b)))) || b.date.localeCompare(a.date));
+  document.querySelectorAll("#obsHead th").forEach((th) => {
+    const b = th.querySelector("[data-sort]");
+    if (b) th.setAttribute("aria-sort", b.dataset.sort === key ? (dir > 0 ? "ascending" : "descending") : "none");
+  });
   $("obsBody").innerHTML = rows.length
     ? rows.map((o) => `<tr>
         <td>${esc(o.date)}</td><td>${esc(o.location)}${o.sample ? ' <span class="pill sample">Sample</span>' : ""}</td>
         <td>${esc(o.slot)}</td><td class="num">${o.traffic}</td><td class="num">${o.heavy}</td><td class="num">${o.dust}</td>
         <td><button class="small ghost" data-edit="${o.id}">Edit</button><button class="small ghost danger" data-del="${o.id}">Delete</button></td>
       </tr>`).join("")
-    : `<tr><td colspan="7" class="muted empty">${observations.length ? "No observations match the current filters." : "No observations yet. Fill in the form to add your first one, or use “Load sample data” above to explore with demo values."}</td></tr>`;
+    : `<tr><td colspan="7" class="muted empty">${observations.length ? (q ? "No saved observation matches your search." : "No observations match the current filters.") : "No observations yet. Fill in the form to add your first one, or use “Load sample data” above to explore with demo values."}</td></tr>`;
 }
 
 function renderHotspots(stats) {
@@ -285,15 +336,18 @@ function renderHotspots(stats) {
 // draw (or redraw) a chart
 function draw(id, config) {
   if (charts[id]) charts[id].destroy();
-  config.options = Object.assign({ responsive: true, maintainAspectRatio: false }, config.options);
+  config.options = Object.assign({ responsive: true, maintainAspectRatio: false }, printing ? { animation: false } : {}, config.options);
   charts[id] = new Chart($(id), config);
 }
+
+// sage accent, plus a warm clay for the second series, so colour only ever means data
+const palette = () => (document.documentElement.dataset.theme === "dark" ? { C1: "#7ccdb4", C2: "#e0a87c" } : { C1: "#2e7d6b", C2: "#b8743f" });
 
 function renderCharts(data, stats) {
   if (typeof Chart === "undefined") return; // CDN not loaded (offline)
   const dark = document.documentElement.dataset.theme === "dark";
   // sage accent, plus a warm clay for the second series, so colour only ever means data
-  const C1 = dark ? "#7ccdb4" : "#2e7d6b", C2 = dark ? "#e0a87c" : "#b8743f", C3 = C1;
+  const { C1, C2 } = palette(), C3 = C1;
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
   // average per date so each date is one point
   const dates = [...new Set(sorted.map((o) => o.date))];
@@ -380,6 +434,121 @@ $("obsBody").addEventListener("click", (e) => {
     toast("Observation deleted.");
     renderAll();
   }
+});
+
+// ---------- field counter: tap once per vehicle, get vehicles per hour and the heavy share ----------
+const counter = { light: 0, heavy: 0, taps: [], elapsed: 0, since: 0, running: false, done: false, result: null };
+let counterTimer, wakeLock;
+const counterTarget = () => Number($("cDur").value) * 60000;
+const counterElapsed = () => counter.elapsed + (counter.running ? Date.now() - counter.since : 0);
+const clock = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+function counterRender() {
+  const total = counter.light + counter.heavy;
+  $("cTime").textContent = clock(counterTarget() - counterElapsed());
+  $("nLight").textContent = counter.light;
+  $("nHeavy").textContent = counter.heavy;
+  $("cPause").textContent = counter.running || (!counter.elapsed && !total) ? "Pause" : "Resume";
+  $("cPause").disabled = counter.done || (!counter.running && !counter.elapsed && !total);
+  $("cUndo").disabled = counter.done || !counter.taps.length;
+  $("cFinish").disabled = counter.done || !total;
+  $("cDur").disabled = counter.running || counter.elapsed > 0 || total > 0;
+  $("tapLight").disabled = counter.done;
+  $("tapHeavy").disabled = counter.done;
+}
+function counterStart() {
+  if (counter.running || counter.done) return;
+  counter.running = true;
+  counter.since = Date.now();
+  clearInterval(counterTimer);
+  counterTimer = setInterval(counterTick, 250);
+  // keep the screen on while someone stands at the roadside counting
+  try { navigator.wakeLock?.request("screen").then((l) => { wakeLock = l; }).catch(() => {}); } catch (e) { /* not supported */ }
+  counterRender();
+}
+function counterPause() {
+  if (!counter.running) { counterStart(); return; } // the button doubles as Resume
+  counter.elapsed = counterElapsed();
+  counter.running = false;
+  clearInterval(counterTimer);
+  counterRender();
+}
+function counterTick() { if (counterElapsed() >= counterTarget()) counterFinish(); else counterRender(); }
+function counterTap(kind) {
+  if (counter.done) return;
+  counterStart();
+  counter[kind]++;
+  counter.taps.push(kind);
+  navigator.vibrate?.(15);
+  counterRender();
+}
+function counterUndo() {
+  const kind = counter.taps.pop();
+  if (kind) { counter[kind]--; counterRender(); }
+}
+function counterFinish() {
+  if (counter.done) return;
+  counter.elapsed = Math.min(counterElapsed(), counterTarget());
+  counter.running = false;
+  counter.done = true;
+  clearInterval(counterTimer);
+  wakeLock?.release?.(); wakeLock = null;
+  navigator.vibrate?.([200, 100, 200]);
+  counterRender();
+  const total = counter.light + counter.heavy, secs = counter.elapsed / 1000;
+  if (secs < 30 || !total) { // too short to scale to an hour honestly
+    counter.result = null;
+    $("cResultText").textContent = "That was too short to scale up to an hour. Reset and count for a few minutes.";
+    $("cUse").hidden = true;
+  } else {
+    const perHour = Math.round((total / secs) * 3600), pct = Math.round((counter.heavy / total) * 1000) / 10;
+    counter.result = { perHour, pct };
+    $("cResultText").textContent = `${total} vehicles in ${clock(counter.elapsed)} means about ${perHour} vehicles per hour, and ${pct}% were trucks or buses.`;
+    $("cUse").hidden = false;
+  }
+  $("cResult").hidden = false;
+}
+function counterReset() {
+  if (counter.light + counter.heavy > 0 && !counter.done && !confirm("Discard this count and start again?")) return;
+  clearInterval(counterTimer);
+  wakeLock?.release?.(); wakeLock = null;
+  Object.assign(counter, { light: 0, heavy: 0, taps: [], elapsed: 0, since: 0, running: false, done: false, result: null });
+  $("cResult").hidden = true;
+  counterRender();
+}
+$("tapLight").addEventListener("click", () => counterTap("light"));
+$("tapHeavy").addEventListener("click", () => counterTap("heavy"));
+$("cPause").addEventListener("click", counterPause);
+$("cUndo").addEventListener("click", counterUndo);
+$("cFinish").addEventListener("click", counterFinish);
+$("cReset").addEventListener("click", counterReset);
+$("cDur").addEventListener("change", counterRender);
+$("cUse").addEventListener("click", () => {
+  if (!counter.result) return;
+  $("traffic").value = counter.result.perHour;
+  $("heavy").value = counter.result.pct;
+  if (!$("date").value) $("date").value = ymd(new Date());
+  $("obsForm").scrollIntoView({ behavior: calm ? "auto" : "smooth" });
+  toast("Filled in vehicles per hour and heavy vehicles. Add the location and dust, then save.");
+});
+counterRender();
+
+// ---------- dust calculator: dust collected on a plate -> mg/m2/day ----------
+function dustCalc() {
+  const mg = parseFloat($("dcMg").value), cm2 = parseFloat($("dcArea").value), days = parseFloat($("dcDays").value);
+  const ok = mg >= 0 && cm2 > 0 && days > 0;
+  const value = ok ? Math.round((mg / (cm2 / 10000) / days) * 10) / 10 : NaN;
+  $("dcOut").textContent = ok ? `${mg} mg on ${cm2} cm² over ${days} day(s) is ${value} mg/m²/day.` : "Enter the three numbers to see the result.";
+  $("dcUse").disabled = !ok;
+  return value;
+}
+["dcMg", "dcArea", "dcDays"].forEach((id) => $(id).addEventListener("input", dustCalc));
+$("dcUse").addEventListener("click", () => {
+  const value = dustCalc();
+  if (isNaN(value)) return;
+  $("dust").value = value;
+  $("dustCalc").open = false;
+  toast(`Dust set to ${value} mg/m²/day.`);
 });
 
 // ---------- sample data / clear ----------
@@ -534,6 +703,55 @@ $("resetSurvey").addEventListener("click", () => {
   renderAll();
 });
 
+// ---------- survey totals: carry them between devices ----------
+const SURVEY_FILE = { bytes: 100000, maxResponses: 1000000 };
+// read a totals file; throws a message the user can act on if anything is off
+function readSurveyTotals(text) {
+  let d;
+  try { d = JSON.parse(text); } catch (e) { throw new Error("That is not a survey totals file."); }
+  if (!d || d.app !== "vayudrishti" || d.type !== "survey-totals" || d.version !== 1) throw new Error("That is not a VayuDrishti survey totals file.");
+  const whole = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
+  if (!whole(d.n, SURVEY_FILE.maxResponses) || !whole(d.near, d.n) || !d.counts || typeof d.counts !== "object") throw new Error("The numbers in that file do not add up.");
+  const counts = {};
+  for (const s of SYMPTOMS) {
+    const v = d.counts[s] ?? 0;
+    if (!whole(v, d.n)) throw new Error("The numbers in that file do not add up.");
+    counts[s] = v;
+  }
+  return { n: d.n, near: d.near, counts };
+}
+$("exportSurvey").addEventListener("click", () => {
+  if (!survey.n) { toast("No survey responses to export yet.", true); return; }
+  if (survey.sample) { toast("These totals include sample data. Remove the sample data first.", true); return; }
+  const file = { app: "vayudrishti", type: "survey-totals", version: 1, exported: new Date().toISOString(), n: survey.n, near: survey.near, counts: survey.counts };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }));
+  a.download = "vayudrishti-survey-totals.json";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+  toast("Survey totals exported.");
+});
+$("importSurvey").addEventListener("click", () => $("surveyFile").click());
+$("surveyFile").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (file.size > SURVEY_FILE.bytes) { toast("That file is too big to be a survey totals file.", true); return; }
+  let totals;
+  try { totals = readSurveyTotals(await file.text()); } catch (err) { toast(err.message, true); return; }
+  const question = survey.sample
+    ? `Your current survey totals are sample data and will be replaced by this file's ${totals.n} responses. Continue?`
+    : `Add ${totals.n} responses from this file to your totals? Adding the same file twice counts it twice.`;
+  if (!confirm(question)) return;
+  const before = survey;
+  const base = survey.sample ? newSurvey() : survey;
+  survey = { n: base.n + totals.n, near: base.near + totals.near, counts: {}, sample: false };
+  SYMPTOMS.forEach((s) => (survey.counts[s] = (base.counts[s] || 0) + totals.counts[s]));
+  if (!save(SURVEY_KEY, survey)) { survey = before; return; }
+  toast(`Added ${totals.n} responses. The survey now has ${survey.n}.`);
+  renderAll();
+});
+
 // ---------- live conditions ----------
 const LIVE_KEY = "aps_live";
 const live = load(LIVE_KEY, {});
@@ -664,6 +882,53 @@ $("nowBtn").addEventListener("click", () => {
   $("liveForm").requestSubmit();
 });
 
+// ---- saved readings: every successful fetch is kept (in this browser only) so a trend can be drawn ----
+const LOG_KEY = "aps_live_log", LOG_MAX = 200;
+let liveLog = load(LOG_KEY, []);
+if (!Array.isArray(liveLog)) liveLog = [];
+liveLog = liveLog.filter((r) => r && typeof r.t === "string" && typeof r.key === "string");
+const spotKey = (t) => `${t.lat.toFixed(4)},${t.lon.toFixed(4)}`;
+
+function logReading(target, cards, aqi) {
+  const num = (label) => { const c = cards.find((x) => x[0] === label); const v = c ? parseFloat(c[1]) : NaN; return isNaN(v) ? null : v; };
+  const row = { t: new Date().toISOString(), key: spotKey(target), name: target.name, aqi: isNaN(aqi) ? null : aqi, speed: num("Traffic speed"), cong: num("Congestion") };
+  if (row.aqi === null && row.speed === null) return;
+  const last = liveLog.filter((r) => r.key === row.key).at(-1);
+  if (last && Date.now() - Date.parse(last.t) < 120000) return; // the server reuses a reading for minutes, so do not log it twice
+  liveLog = liveLog.concat(row).slice(-LOG_MAX);
+  save(LOG_KEY, liveLog);
+}
+
+function renderLiveHistory() {
+  const t = liveTarget();
+  const rows = t ? liveLog.filter((r) => r.key === spotKey(t)) : [];
+  $("liveHistory").hidden = !rows.length;
+  $("liveChartBox").hidden = rows.length < 2;
+  if (rows.length < 2 && charts.cLive) { charts.cLive.destroy(); delete charts.cLive; }
+  if (!rows.length) return;
+  $("liveHistTitle").textContent = `${t.name}: readings over time`;
+  $("liveHistNote").textContent = rows.length < 2
+    ? "One reading so far. Fetch again later, or turn on auto-refresh, to see a trend."
+    : `${rows.length} readings, the latest on ${new Date(rows.at(-1).t).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. They are saved in this browser only.`;
+  if (rows.length < 2 || typeof Chart === "undefined") return;
+  const { C1, C2 } = palette();
+  draw("cLive", { type: "line", data: {
+    labels: rows.map((r) => new Date(r.t).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })),
+    datasets: [
+      { label: "US AQI", data: rows.map((r) => r.aqi), borderColor: C1, backgroundColor: C1, tension: 0.3, spanGaps: true, yAxisID: "y" },
+      { label: "Congestion (%)", data: rows.map((r) => r.cong), borderColor: C2, backgroundColor: C2, tension: 0.3, spanGaps: true, yAxisID: "y1" }] },
+    options: { scales: { y: { position: "left", title: { display: true, text: "US AQI" } }, y1: { position: "right", min: 0, max: 100, title: { display: true, text: "Congestion %" }, grid: { drawOnChartArea: false } } } } });
+}
+$("place").addEventListener("change", renderLiveHistory);
+["lat", "lon"].forEach((id) => $(id).addEventListener("change", renderLiveHistory));
+$("clearLive").addEventListener("click", () => {
+  if (!confirm("Delete all saved live readings?")) return;
+  liveLog = [];
+  save(LOG_KEY, liveLog);
+  renderLiveHistory();
+  toast("Saved readings deleted.");
+});
+
 $("liveForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const target = liveTarget();
@@ -689,17 +954,20 @@ $("liveForm").addEventListener("submit", async (e) => {
   $("nowBtn").textContent = "Refresh";
   // the AQI becomes an iris, and the haze behind the page takes its colour
   const aqiCard = cards.find((c) => c[0] === "AQI (US)"), aqi = aqiCard ? parseInt(aqiCard[1], 10) : NaN;
+  logReading(target, cards, aqi);
   if (!isNaN(aqi)) {
     const where = cards.find((c) => c[0] === "IQAir station city");
     $("liveTop").innerHTML = ring(aqi, 300, "US AQI", aqiBand(aqi)) +
       `<div class="ins-text"><p class="eyebrow">Air near ${esc(target.name)}</p><h3>${esc(String(aqiCard[1]).split(" · ")[1] || "")}</h3>` +
-      (where ? `<p class="muted">Nearest station: ${esc(where[1])}</p>` : "") + "</div>";
+      (where ? `<p class="muted">Nearest station: ${esc(where[1])}</p>` : "") +
+      `<p class="advice">${esc(aqiAdvice(aqi))} <span class="muted">General guidance from US EPA categories, not medical advice.</span></p></div>`;
     setAtmosphere(aqi);
     animateRings();
     cards = cards.filter((c) => c !== aqiCard && c !== where);
   }
   $("liveCards").className = "cards enter";
   $("liveCards").innerHTML = cards.map((c, i) => `<div class="card" style="--i:${i}"><small>${esc(c[0])}</small><b>${esc(c[1])}</b></div>`).join("");
+  renderLiveHistory();
   $("liveNote").textContent = results.map((r, i) => (r.status === "rejected" ? `${LIVE_SOURCES[i].name} failed: ${r.reason.message}.` : "")).join("");
 });
 
