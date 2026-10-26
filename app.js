@@ -388,6 +388,60 @@ $("resetSurvey").addEventListener("click", () => {
   renderAll();
 });
 
+// ---------- live conditions ----------
+const LIVE_KEY = "aps_live";
+const live = load(LIVE_KEY, {});
+const AQI_LEVELS = [[50, "Good"], [100, "Moderate"], [150, "Unhealthy for sensitive groups"], [200, "Unhealthy"], [300, "Very unhealthy"], [Infinity, "Hazardous"]];
+const POLLUTANTS = { p2: "PM2.5", p1: "PM10", o3: "Ozone", n2: "NO₂", s2: "SO₂", co: "CO" };
+
+// error messages never include the URL, because it carries the API key
+async function getJson(url) {
+  let res;
+  try { res = await fetch(url, { signal: AbortSignal.timeout(10000) }); }
+  catch (e) { throw new Error("network error or timeout"); }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.data?.message || body.detailedError?.message || "HTTP " + res.status);
+  return body;
+}
+
+// each source returns [label, value] pairs for the cards
+async function fetchAqi(lat, lon, key) {
+  const j = await getJson(`https://api.airvisual.com/v2/nearest_city?lat=${lat}&lon=${lon}&key=${encodeURIComponent(key)}`);
+  if (j.status !== "success") throw new Error(j.data?.message || "unexpected response");
+  const { city, state, current: { pollution: p, weather: w } } = j.data;
+  return [
+    ["AQI (US)", `${p.aqius} · ${AQI_LEVELS.find((l) => p.aqius <= l[0])[1]}`],
+    ["Main pollutant", POLLUTANTS[p.mainus] || p.mainus],
+    ["Temp / humidity", `${w.tp}°C / ${w.hu}%`],
+    ["IQAir station city", `${city}, ${state}`],
+    ["AQI updated", new Date(p.ts).toLocaleString()],
+  ];
+}
+const LIVE_SOURCES = [{ name: "IQAir", keyId: "iqKey", run: fetchAqi }];
+
+["lat", "lon", ...LIVE_SOURCES.map((s) => s.keyId)].forEach((id) => ($(id).value = live[id] || ""));
+
+$("useLoc").addEventListener("click", () => {
+  if (!navigator.geolocation) { toast("Geolocation is not available in this browser.", true); return; }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => { $("lat").value = pos.coords.latitude.toFixed(5); $("lon").value = pos.coords.longitude.toFixed(5); },
+    () => toast("Could not get your location.", true));
+});
+
+$("liveForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const lat = Number($("lat").value), lon = Number($("lon").value);
+  const sources = LIVE_SOURCES.filter((s) => $(s.keyId).value.trim());
+  if (!sources.length) { toast("Enter at least one API key.", true); return; }
+  save(LIVE_KEY, Object.fromEntries(["lat", "lon", ...LIVE_SOURCES.map((s) => s.keyId)].map((id) => [id, $(id).value.trim()])));
+  $("liveBtn").disabled = true;
+  const results = await Promise.allSettled(sources.map((s) => s.run(lat, lon, $(s.keyId).value.trim())));
+  $("liveBtn").disabled = false;
+  const cards = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+  $("liveCards").innerHTML = cards.map((c) => `<div class="card"><small>${esc(c[0])}</small><b>${esc(c[1])}</b></div>`).join("");
+  $("liveNote").textContent = results.map((r, i) => (r.status === "rejected" ? `${sources[i].name} failed: ${r.reason.message}. ` : "")).join("");
+});
+
 // ---------- start ----------
 applyTheme(document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 resetForm();
