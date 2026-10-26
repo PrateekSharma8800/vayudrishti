@@ -41,6 +41,7 @@ h3 { margin: 0 0 10px; font-size: 1rem; }
 .card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px var(--shadow); }
 .card small { color: var(--muted); }
 .card b { display: block; font-size: 1.7rem; margin-top: 4px; }
+#liveCards .card b { font-size: 1.15rem; } /* values here are text, not just numbers */
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; align-items: start; }
 .panel { background: var(--card); border-radius: 14px; padding: 18px; box-shadow: 0 2px 8px var(--shadow); min-width: 0; transition: box-shadow .2s; }
 .panel:hover { box-shadow: 0 6px 16px var(--shadow); }
