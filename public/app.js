@@ -295,15 +295,35 @@ function renderCards(data, stats) {
 const prevCards = {};
 let cardsFirst = true;
 
+// click a column title to sort by it; click again to reverse. Newest first by default.
+let obsSort = { key: "date", dir: -1 };
+function setSort(key) {
+  obsSort = obsSort.key === key ? { key, dir: -obsSort.dir } : { key, dir: ["date", "traffic", "heavy", "dust"].includes(key) ? -1 : 1 };
+  renderTable(filtered());
+}
+$("obsHead").addEventListener("click", (e) => {
+  const b = e.target.closest?.("[data-sort]");
+  if (b) setSort(b.dataset.sort);
+});
+$("obsSearch").addEventListener("input", () => renderTable(filtered()));
+
 function renderTable(data) {
-  const rows = [...data].sort((a, b) => b.date.localeCompare(a.date));
+  const q = $("obsSearch").value.trim().toLowerCase();
+  const matches = q ? data.filter((o) => [o.date, o.location, o.slot, o.notes || ""].some((t) => String(t).toLowerCase().includes(q))) : data;
+  const { key, dir } = obsSort;
+  const val = (o) => (key === "slot" ? ["Morning", "Afternoon", "Evening"].indexOf(o.slot) : o[key]); // slots sort by time of day
+  const rows = [...matches].sort((a, b) => dir * (typeof val(a) === "number" ? val(a) - val(b) : String(val(a)).localeCompare(String(val(b)))) || b.date.localeCompare(a.date));
+  document.querySelectorAll("#obsHead th").forEach((th) => {
+    const b = th.querySelector("[data-sort]");
+    if (b) th.setAttribute("aria-sort", b.dataset.sort === key ? (dir > 0 ? "ascending" : "descending") : "none");
+  });
   $("obsBody").innerHTML = rows.length
     ? rows.map((o) => `<tr>
         <td>${esc(o.date)}</td><td>${esc(o.location)}${o.sample ? ' <span class="pill sample">Sample</span>' : ""}</td>
         <td>${esc(o.slot)}</td><td class="num">${o.traffic}</td><td class="num">${o.heavy}</td><td class="num">${o.dust}</td>
         <td><button class="small ghost" data-edit="${o.id}">Edit</button><button class="small ghost danger" data-del="${o.id}">Delete</button></td>
       </tr>`).join("")
-    : `<tr><td colspan="7" class="muted empty">${observations.length ? "No observations match the current filters." : "No observations yet. Fill in the form to add your first one, or use “Load sample data” above to explore with demo values."}</td></tr>`;
+    : `<tr><td colspan="7" class="muted empty">${observations.length ? (q ? "No saved observation matches your search." : "No observations match the current filters.") : "No observations yet. Fill in the form to add your first one, or use “Load sample data” above to explore with demo values."}</td></tr>`;
 }
 
 function renderHotspots(stats) {
