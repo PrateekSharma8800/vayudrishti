@@ -91,11 +91,14 @@
         <section id="live">
           <h2>Live conditions</h2>
           <div class="panel">
-            <p class="muted">Fetch live AQI and traffic for one point. API keys stay in <code>.env</code> on the server (start it with <code>node server.js</code>); the browser never sees them.</p>
+            <p class="muted">Pick a place in Delhi NCR to see its air quality and traffic right now. No need to know latitude or longitude.</p>
             <form id="liveForm">
-              <div class="row">
-                <label>Latitude <input type="number" id="lat" step="any" min="-90" max="90" required placeholder="28.6139"></label>
-                <label>Longitude <input type="number" id="lon" step="any" min="-180" max="180" required placeholder="77.2090"></label>
+              <label>Place
+                <select id="place" required></select>
+              </label>
+              <div class="row" id="coordRow" hidden>
+                <label>Latitude <input type="number" id="lat" step="any" min="-90" max="90" placeholder="28.6139"></label>
+                <label>Longitude <input type="number" id="lon" step="any" min="-180" max="180" placeholder="77.2090"></label>
               </div>
               <div class="row actions">
                 <button type="submit" id="liveBtn">Fetch live data</button>
@@ -106,17 +109,29 @@
             <div class="live-top" id="liveTop"></div>
             <div class="cards" id="liveCards"></div>
             <p class="muted" id="liveNote" aria-live="polite"></p>
-            <p class="muted">AQI comes from the nearest IQAir station city, which may be some distance from your point. Free IQAir keys are rate-limited, so fetch sparingly. TomTom reports speed and congestion on the nearest road, not vehicle counts, so it does not replace the vehicles per hour you count in the field.</p>
+            <p class="muted">How to read this: the <strong>AQI</strong> comes from the nearest IQAir monitoring station, so places in the same city often show the same number. The <strong>traffic</strong> numbers are for the road at the place you picked, so they differ from place to place. TomTom reports speed and congestion, not vehicle counts, so it does not replace the vehicles per hour you count yourself in Observations. The server keeps readings for a few minutes, so pressing Fetch repeatedly will not change them.</p>
           </div>
         </section>
 
         <section id="observe">
           <h2>Observations</h2>
+          <p class="lead">Observations are the readings <strong>you</strong> take in the field: count the vehicles passing a spot and measure the dust that settles there. VayuDrishti turns them into charts and ranks your spots from cleanest to most polluted. New here? <button type="button" class="ghost" id="guideSample">Load sample data</button> to see a finished study first.</p>
+          <details class="guide">
+            <summary>How to take an observation</summary>
+            <ol>
+              <li><strong>Pick a spot</strong> such as a busy junction, a quiet residential street or a park gate, and use the same name every visit.</li>
+              <li><strong>Count vehicles.</strong> Stand somewhere safe and count every vehicle that passes for 10 minutes. Multiply by 6 to get <em>vehicles per hour</em>.</li>
+              <li><strong>Note the heavy ones.</strong> Of those vehicles, what share were trucks and buses? That is <em>heavy vehicles (%)</em>.</li>
+              <li><strong>Measure dust.</strong> Leave a clean, weighed plate or jar in the open for 24 hours, then weigh the dust it collected (in milligrams) and divide by the plate's area in m². The result is <em>dust deposition in mg/m²/day</em>.</li>
+              <li><strong>Write it down here</strong> with the date and time of day. Repeat on several days and at several spots: more spots and more days make the ranking more trustworthy.</li>
+            </ol>
+            <p class="muted">Cannot measure today? <a href="#live">Live conditions</a> shows the air and traffic right now, and the sample data shows how a finished study looks.</p>
+          </details>
           <div class="grid2">
             <form id="obsForm" class="panel">
               <h3 id="formTitle">Add observation</h3>
               <input type="hidden" id="obsId">
-              <label>Location <input id="loc" list="locList" required maxlength="40" placeholder="e.g. Main Market Crossing"></label>
+              <label>Location <span class="hint">Use the same name every visit</span><input id="loc" list="locList" required maxlength="40" placeholder="e.g. Main Market Crossing"></label>
               <datalist id="locList"></datalist>
               <div class="row">
                 <label>Date <input type="date" id="date" required></label>
@@ -125,10 +140,10 @@
                 </label>
               </div>
               <div class="row">
-                <label>Vehicles per hour <input type="number" id="traffic" min="0" required></label>
-                <label>Heavy vehicles (%) <input type="number" id="heavy" min="0" max="100" value="10" required></label>
+                <label>Vehicles per hour <span class="hint">Count for 10 minutes, then multiply by 6</span><input type="number" id="traffic" min="0" required></label>
+                <label>Heavy vehicles (%) <span class="hint">Trucks and buses as a share of all vehicles</span><input type="number" id="heavy" min="0" max="100" value="10" required></label>
               </div>
-              <label>Dust deposition (mg/m²/day) <input type="number" id="dust" min="0" step="0.1" required></label>
+              <label>Dust deposition (mg/m²/day) <span class="hint">From your weighed plate: dust in mg ÷ plate area in m² ÷ days</span><input type="number" id="dust" min="0" step="0.1" required></label>
               <label>Notes <textarea id="notes" rows="2" maxlength="200" placeholder="Weather, construction nearby, etc."></textarea></label>
               <div class="row actions">
                 <button type="submit" id="saveBtn">Save observation</button>
