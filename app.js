@@ -115,18 +115,20 @@ function refreshLocations() {
 }
 
 // ---------- hotspot calculation ----------
+// Fixed reference values (a "full marks" level), so a score does not depend on which
+// other locations are loaded or filtered. Teaching values, not official limits.
+const REF = { dust: 300, traffic: 2000, heavy: 30 };
 function locationStats(data) {
   const groups = {};
   data.forEach((o) => (groups[o.location] = groups[o.location] || []).push(o));
   const stats = Object.keys(groups).map((name) => ({
     name, n: groups[name].length,
     traffic: avg(groups[name].map((o) => o.traffic)),
+    heavy: avg(groups[name].map((o) => o.heavy)),
     dust: avg(groups[name].map((o) => o.dust)),
   }));
-  const maxT = Math.max(1, ...stats.map((s) => s.traffic));
-  const maxD = Math.max(1, ...stats.map((s) => s.dust));
   stats.forEach((s) => {
-    s.score = Math.round(50 * (s.dust / maxD) + 50 * (s.traffic / maxT));
+    s.score = Math.round(40 * Math.min(s.dust / REF.dust, 1) + 40 * Math.min(s.traffic / REF.traffic, 1) + 20 * Math.min(s.heavy / REF.heavy, 1));
     s.level = s.score >= 70 ? "High" : s.score >= 40 ? "Moderate" : "Low";
   });
   return stats.sort((a, b) => b.score - a.score);

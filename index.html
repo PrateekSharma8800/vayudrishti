@@ -110,7 +110,7 @@
 
     <section id="hotspots" class="panel">
       <h2>Pollution hotspot ranking</h2>
-      <p class="muted">Score = 50% average dust + 50% average traffic, each scaled against the highest location (0–100). Based on the current filters.</p>
+      <p class="muted">Score (0–100) = 40% average dust + 40% average traffic + 20% average heavy-vehicle share, each measured against a fixed reference (300 mg/m²/day, 2000 vehicles/h, 30% heavy) and capped at 1. Based on the current filters.</p>
       <div class="tablewrap">
         <table><thead><tr><th>Rank</th><th>Location</th><th>Avg traffic</th><th>Avg dust</th><th>Score</th><th>Level</th></tr></thead>
         <tbody id="hotBody"></tbody></table>
@@ -160,7 +160,8 @@
           <li>Dust deposition is not the same as PM2.5/PM10 concentration.</li>
           <li>Weather, wind, rain and nearby construction affect dust.</li>
           <li>Survey answers are self-reported and may be biased.</li>
-          <li>The hotspot score is a simple teaching index, not an official air quality index.</li>
+          <li>The hotspot score is a simple teaching index with arbitrary reference values, not an official air quality index.</li>
+          <li>The traffic–dust correlation pools all locations, so differences between places can drive it.</li>
           <li>Data is stored only in this browser (localStorage).</li>
         </ul>
       </div>
